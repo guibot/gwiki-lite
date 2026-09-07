@@ -1,50 +1,50 @@
 # gwiki-lite
 
-Versão sem servidor do [gwiki](https://github.com/guibot/gwiki): um único
-ficheiro HTML, autossuficiente, que funciona como wiki editável ou tutorial
-passo a passo — sem instalar nada, sem build, sem backend.
+A server-less version of [gwiki](https://github.com/guibot/gwiki): a single
+self-contained HTML file that works as an editable wiki or a step-by-step
+tutorial — no install, no build, no backend.
 
-## Porquê
+## Why
 
-O gwiki original precisa de servidor. Este é para quando isso é a mais:
-notas de curso, um tutorial para partilhar, documentação de um projeto
-pequeno — abre-se o ficheiro no browser (`file://`) e já está.
+The original gwiki needs a server. This one is for when that's overkill:
+course notes, a tutorial to share, small-project documentation — just open
+the file in a browser (`file://`) and you're done.
 
-## Como usar
+## Usage
 
-1. Copia `gwiki_template.html` para o teu projeto (podes renomear para
+1. Copy `gwiki_template.html` into your project (you can rename it to
    `index.html`).
-2. Abre-o num browser. Na primeira vez, escolhe o modo:
-   - **Wiki Básica** — blocos e sessões de texto, com notas por atividade.
-   - **Tutorial** — passos numerados, cada um com imagem + legenda.
-3. Clica no 🔒 para desbloquear e editar diretamente na página.
-4. Clica outra vez (🔓 → 🔒) para gravar — o browser descarrega um
-   `index.html` atualizado. Substitui o ficheiro antigo por esse.
+2. Open it in a browser. On first run, pick a mode:
+   - **Basic Wiki** — text blocks and sessions, with notes per activity.
+   - **Tutorial** — numbered steps, each with an image + caption.
+3. Click 🔒 to unlock and edit directly on the page.
+4. Click again (🔓 → 🔒) to save — the browser downloads an updated
+   `index.html`. Replace the old file with that one.
 
-Não há servidor nem base de dados: todo o estado (conteúdo, modo escolhido,
-tema de cor, notas, larguras das sidebars) fica guardado dentro do próprio
-HTML. Gravar = descarregar o ficheiro e substituir o anterior.
+There's no server or database: all state (content, chosen mode, color
+theme, notes, sidebar widths) lives inside the HTML itself. Saving means
+downloading the file and replacing the old one.
 
-## Funcionalidades
+## Features
 
-- Escolha de modo na primeira abertura (fica fixa depois de gravares)
-- Índice lateral gerado automaticamente a partir do conteúdo
-- Edição direta na página (lock/unlock)
-- Modo Básica: notas por atividade, num painel lateral
-- Modo Tutorial: passos com imagem + legenda, numerados automaticamente
-- 4 temas de cor (verde/azul/laranja/cinza)
-- Sidebars redimensionáveis e colapsáveis
-- Zero dependências externas, zero build, zero servidor
+- Mode chooser on first run (stays fixed once you save)
+- Left index generated automatically from the content
+- Direct in-page editing (lock/unlock)
+- Basic mode: per-activity notes in a side panel
+- Tutorial mode: image + caption steps, auto-numbered
+- 4 color themes (green/blue/orange/gray)
+- Resizable, collapsible sidebars
+- Zero external dependencies, zero build, zero server
 
-## Ficheiros
+## Files
 
-- `gwiki_template.html` — o template principal (usar este)
-- `template.md` — documentação da estrutura interna do HTML, para quem for
-  editar o conteúdo diretamente no código (ou pedir ao Claude Code para o
-  fazer)
+- `gwiki_template.html` — the main template (use this one)
+- `template.md` — documentation of the HTML's internal structure, for
+  anyone editing the content directly in code (or asking Claude Code to do
+  it)
 
-## Relação com o gwiki
+## Relation to gwiki
 
-Este projeto é uma derivação do [gwiki](https://github.com/guibot/gwiki),
-pensada para casos em que não vale a pena montar servidor. Não é um
-substituto — é uma versão leve para uso pontual ou offline.
+This project is a derivative of [gwiki](https://github.com/guibot/gwiki),
+built for cases where running a server isn't worth it. It's not a
+replacement — it's a lightweight version for one-off or offline use.
