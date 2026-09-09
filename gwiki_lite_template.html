@@ -452,6 +452,8 @@ body.notes-open .layout{padding-right:var(--notes-w,340px);}
     var bar = document.createElement('div');
     bar.className = 'section-controls';
     bar.innerHTML =
+      '<button class="ctrl-btn move-up-btn" type="button" title="Mover para cima">↑</button>' +
+      '<button class="ctrl-btn move-down-btn" type="button" title="Mover para baixo">↓</button>' +
       '<button class="ctrl-btn add-session-btn" type="button">+ Sessão</button>' +
       '<button class="ctrl-btn danger del-block-btn" type="button">🗑 Bloco</button>';
     sec.insertBefore(bar, sec.firstChild);
@@ -460,7 +462,10 @@ body.notes-open .layout{padding-right:var(--notes-w,340px);}
     if(sub.querySelector(':scope > .section-controls')) return;
     var bar = document.createElement('div');
     bar.className = 'section-controls';
-    bar.innerHTML = '<button class="ctrl-btn danger del-session-btn" type="button">🗑 Sessão</button>';
+    bar.innerHTML =
+      '<button class="ctrl-btn move-up-btn" type="button" title="Mover para cima">↑</button>' +
+      '<button class="ctrl-btn move-down-btn" type="button" title="Mover para baixo">↓</button>' +
+      '<button class="ctrl-btn danger del-session-btn" type="button">🗑 Sessão</button>';
     sub.insertBefore(bar, sub.firstChild);
   }
   function decorateAll(){
@@ -523,7 +528,7 @@ body.notes-open .layout{padding-right:var(--notes-w,340px);}
     document.body.classList.toggle('edit-mode', on);
     lockToggle.textContent = on ? '🔓' : '🔒';
     lockToggle.title = on ? 'Bloquear e gravar ficheiro' : 'Desbloquear edição';
-    var editable = main.querySelectorAll('h1, h2, p');
+    var editable = main.querySelectorAll('h1, h2, p, li');
     editable.forEach(function(el){
       if(el.closest('.section-controls')) return;
       el.setAttribute('contenteditable', on ? 'true' : 'false');
@@ -532,28 +537,62 @@ body.notes-open .layout{padding-right:var(--notes-w,340px);}
     docSubtitle.setAttribute('contenteditable', on ? 'true' : 'false');
   }
 
-  function downloadFile(){
-    var html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+  // Colar sempre como texto simples (sem cor/tamanho/fonte da origem)
+  function stripFormattingOnPaste(e){
+    if(!editing) return;
+    if(!e.target.closest('[contenteditable="true"]')) return;
+    e.preventDefault();
+    var text = (e.clipboardData || window.clipboardData).getData('text/plain');
+    var sel = window.getSelection();
+    if(!sel.rangeCount) return;
+    var range = sel.getRangeAt(0);
+    range.deleteContents();
+    var node = document.createTextNode(text);
+    range.insertNode(node);
+    range.setStartAfter(node);
+    range.setEndAfter(node);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+  document.addEventListener('paste', stripFormattingOnPaste);
+
+  function downloadFile(filename, htmlContent){
+    var html = htmlContent || ('<!DOCTYPE html>\n' + document.documentElement.outerHTML);
     var blob = new Blob([html], {type: 'text/html'});
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
     a.href = url;
-    a.download = 'index.html';
+    a.download = filename || 'index.html';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
   }
 
+  function timestamp(){
+    var d = new Date();
+    function pad(n){ return String(n).padStart(2, '0'); }
+    return d.getFullYear() + pad(d.getMonth()+1) + pad(d.getDate()) + '-' + pad(d.getHours()) + pad(d.getMinutes()) + pad(d.getSeconds());
+  }
+
+  // Snapshot do documento tirado ao desbloquear (🔓), para servir de backup
+  // "do anterior" quando se voltar a bloquear (🔒).
+  var preEditSnapshot = null;
+
   lockToggle.addEventListener('click', function(){
     if(editing){
-      // A bloquear: grava as alterações e descarrega o ficheiro atualizado
+      // A bloquear: grava um backup do estado anterior (antes desta edição)
+      // e descarrega o ficheiro atualizado.
       flushPendingNote();
       setEditMode(false);
       closeNotes();
-      downloadFile();
-      alert('Ficheiro descarregado. Substitui o index.html na pasta do projeto pelo ficheiro que acabou de ser transferido.');
+      if(preEditSnapshot){
+        downloadFile('bk-' + timestamp() + '.html', preEditSnapshot);
+      }
+      downloadFile('index.html');
+      alert('Ficheiro descarregado (mais um backup do estado anterior). Substitui o index.html na pasta do projeto pelo ficheiro que acabou de ser transferido.');
     } else {
+      preEditSnapshot = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
       setEditMode(true);
     }
   });
@@ -571,7 +610,7 @@ body.notes-open .layout{padding-right:var(--notes-w,340px);}
     var sec = document.createElement('section');
     sec.className = 'doc-section';
     sec.id = id;
-    sec.innerHTML = '<h1 contenteditable="true">Novo Bloco</h1><p contenteditable="true">Descrição do bloco…</p>';
+    sec.innerHTML = '<h1 contenteditable="true">Novo Bloco</h1><p contenteditable="true"><strong>Nome da atividade</strong> Descrição do bloco…</p>';
     main.appendChild(sec);
     ensureBlockControls(sec);
     rebuildSidebar();
@@ -589,6 +628,23 @@ body.notes-open .layout{padding-right:var(--notes-w,340px);}
     var addSessionBtn = e.target.closest('.add-session-btn');
     var delBlockBtn = e.target.closest('.del-block-btn');
     var delSessionBtn = e.target.closest('.del-session-btn');
+    var moveUpBtn = e.target.closest('.move-up-btn');
+    var moveDownBtn = e.target.closest('.move-down-btn');
+
+    if(moveUpBtn || moveDownBtn){
+      var bar = (moveUpBtn || moveDownBtn).closest('.section-controls');
+      var owner = bar.parentElement; // .doc-section or .sub-section
+      var isUp = !!moveUpBtn;
+      var sibling = isUp ? owner.previousElementSibling : owner.nextElementSibling;
+      var ownerClass = owner.classList.contains('sub-section') ? 'sub-section' : 'doc-section';
+      if(sibling && sibling.classList.contains(ownerClass)){
+        if(isUp) owner.parentNode.insertBefore(owner, sibling);
+        else owner.parentNode.insertBefore(sibling, owner);
+        rebuildSidebar();
+        owner.scrollIntoView({behavior:'smooth', block:'center'});
+      }
+      return;
+    }
 
     if(addSessionBtn){
       var sec = addSessionBtn.closest('.doc-section');
@@ -606,7 +662,7 @@ body.notes-open .layout{padding-right:var(--notes-w,340px);}
           '<img alt="Passo 00" style="max-width:100%;border-radius:8px;border:1px solid var(--border);margin:4px 0 24px;display:block"></div>' +
           '<div class="step-end-wrap"><button class="ctrl-btn add-step-end-btn" type="button">+ Passo (no fim da sessão)</button></div>';
       } else {
-        sub.innerHTML = '<h2 contenteditable="true">Nova Sessão</h2><p contenteditable="true">Descrição da sessão…</p>';
+        sub.innerHTML = '<h2 contenteditable="true">Nova Sessão</h2><p contenteditable="true"><strong>Nome da atividade</strong> Descrição da sessão…</p>';
       }
       sec.appendChild(sub);
       ensureSessionControls(sub);
