@@ -1,0 +1,1768 @@
+<!DOCTYPE html>
+<html lang="pt"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Novo Documento</title>
+<style>
+:root{
+  --bg:#0d0e10; --bg-alt:#13151a; --surface2:#1a1d24;
+  --border:#252830; --border2:#2e3240;
+  --text:#e2e4ea; --text-muted:#9ca3af; --text-dim:#6b7280;
+  --accent:#4ade80; --accent-mid:#22c55e; --accent-bg:rgba(74,222,128,0.12);
+  --blue:#60a5fa; --blue-bg:rgba(96,165,250,0.1);
+  --code-bg:#111318; --sidebar-w:268px;
+  --danger:#f87171; --danger-bg:rgba(248,113,113,0.1);
+  --font-sans:'Geist','Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --font-mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+:root[data-theme="azul"]{ --accent:#60a5fa; --accent-mid:#3b82f6; --accent-bg:rgba(96,165,250,0.12); }
+:root[data-theme="laranja"]{ --accent:#fb923c; --accent-mid:#f97316; --accent-bg:rgba(251,146,60,0.12); }
+:root[data-theme="cinza"]{ --accent:#9ca3af; --accent-mid:#6b7280; --accent-bg:rgba(156,163,175,0.14); }
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  font-family:var(--font-sans);
+  background:var(--bg); color:var(--text); line-height:1.6;
+}
+a{color:var(--blue); text-decoration:none;}
+a:hover{text-decoration:underline;}
+button{font-family:var(--font-mono);}
+
+/* Zonas fixas (texto / passos), colapsáveis. Estado só de vista: não fica gravado. */
+body.collapsed-text .doc-section:not([data-type="steps"]){display:none;}
+body.collapsed-steps .doc-section[data-type="steps"]{display:none;}
+body.collapsed-text .nav-item[data-type="text"]{display:none;}
+body.collapsed-steps .nav-item[data-type="steps"]{display:none;}
+.zone-header, .nav-zone{
+  display:flex; align-items:center; gap:8px; cursor:pointer; user-select:none;
+  font-family:var(--font-mono); font-weight:700; text-transform:uppercase; letter-spacing:.5px;
+  color:var(--text-muted);
+}
+.zone-header:hover, .nav-zone:hover{color:var(--accent);}
+.zone-header{font-size:12px; padding:10px 0; margin:0 0 16px; border-bottom:1px solid var(--border);}
+.zone-header:not(:first-child){margin-top:48px;}
+.nav > li.nav-zone{font-size:10.5px; padding:6px 10px; margin:8px 0 2px;}
+.zone-caret{display:inline-block; transition:transform .15s;}
+body.collapsed-text [data-zone="text"] .zone-caret,
+body.collapsed-steps [data-zone="steps"] .zone-caret{transform:rotate(-90deg);}
+.zone-count{font-weight:500; color:var(--text-dim);}
+.add-actions{display:none; gap:6px; margin:0 20px 12px;}
+body.edit-mode .add-actions{display:flex;}
+.add-actions .add-block-btn{flex:1; width:auto; margin-bottom:0; padding:8px 6px; font-size:12px;}
+.nav-icon{margin-right:5px; font-size:11px;}
+
+/* Layout */
+.layout{display:flex; min-height:100vh;}
+
+/* Sidebar */
+.sidebar{
+  width:var(--sidebar-w); flex:0 0 auto;
+  background:var(--bg-alt); border-right:1px solid var(--border);
+  position:sticky; top:0; height:100vh; overflow-y:auto;
+  padding:20px 0 40px;
+}
+body.sidebar-collapsed .sidebar{display:none;}
+.sidebar-header{
+  padding:0 20px 16px; border-bottom:1px solid var(--border); margin-bottom:12px;
+  display:flex; align-items:flex-start; justify-content:space-between; gap:8px;
+}
+.sidebar-header h1{
+  font-family:var(--font-mono);
+  font-size:14px; font-weight:700; margin:0 0 4px; letter-spacing:.2px;
+}
+.sidebar-header .meta{font-family:var(--font-mono); font-size:11px; color:var(--text-dim);}
+.lock-btn, .sidebar-collapse-btn{
+  flex:0 0 auto; background:var(--bg-alt); border:1px solid var(--border); border-radius:6px;
+  padding:6px 9px; cursor:pointer; font-size:14px; color:var(--text); line-height:1;
+}
+.sidebar-collapse-btn{color:var(--text-muted); font-size:12px;}
+.lock-btn:hover, .sidebar-collapse-btn:hover{border-color:var(--accent); color:var(--accent);}
+body.edit-mode .lock-btn{background:var(--accent-bg); border-color:var(--accent); color:var(--accent);}
+.lock-wrap{display:flex; flex-direction:column; align-items:flex-end; gap:6px;}
+
+.sidebar-reopen{
+  display:none; position:fixed; left:10px; top:12px; z-index:36;
+  background:var(--bg-alt); border:1px solid var(--border); border-radius:6px;
+  padding:7px 10px; cursor:pointer; color:var(--text-muted); font-size:14px;
+}
+.sidebar-reopen:hover{border-color:var(--accent); color:var(--accent);}
+body.sidebar-collapsed .sidebar-reopen{display:block;}
+
+.resize-handle{
+  position:absolute; top:0; width:6px; height:100%; z-index:35;
+  cursor:col-resize; background:transparent;
+}
+.resize-handle:hover, .resize-handle.dragging{background:var(--accent);}
+.sidebar .resize-handle{right:-3px;}
+.notes-panel .resize-handle{left:-3px;}
+@media (max-width:860px){
+  .sidebar-collapse-btn, .sidebar-reopen, .resize-handle{display:none !important;}
+}
+
+.search-box{margin:14px 20px 4px;}
+.search-box input{
+  width:100%; padding:8px 10px; font-size:12.5px; font-family:var(--font-mono);
+  border:1px solid var(--border); border-radius:6px;
+  background:var(--bg); color:var(--text);
+}
+.search-box input::placeholder{color:var(--text-dim);}
+.search-box input:focus{outline:none; border-color:var(--accent);}
+.nav{list-style:none; margin:10px 0 0; padding:0 8px;}
+.nav > li{margin:2px 0;}
+.nav a.nav-h1{
+  display:block; padding:8px 12px; border-radius:6px;
+  font-weight:600; font-size:13.5px; color:var(--text);
+}
+.nav a.nav-h1:hover{background:var(--surface2); text-decoration:none;}
+.nav a.nav-h1.active{background:var(--accent-bg); color:var(--accent);}
+.nav-sub{list-style:none; margin:2px 0 6px; padding:0 0 0 20px; border-left:1px solid var(--border); margin-left:16px;}
+.nav-sub li{margin:1px 0;}
+.nav-sub a.nav-h2{
+  display:block; padding:6px 10px; border-radius:6px;
+  font-size:12.5px; color:var(--text-muted);
+}
+.nav-sub a.nav-h2:hover{background:var(--surface2); color:var(--text); text-decoration:none;}
+.nav-sub a.nav-h2.active{color:var(--accent); font-weight:600;}
+
+.sidebar-footer{display:none; padding:14px 20px 0;}
+body.edit-mode .sidebar-footer{display:block;}
+.add-block-btn, .restore-btn{
+  width:100%; padding:9px 10px; margin-bottom:8px; font-size:12.5px; font-weight:600;
+  border-radius:6px; cursor:pointer; border:1px dashed var(--accent);
+  background:var(--accent-bg); color:var(--accent);
+}
+.restore-btn{border:1px solid var(--border); background:var(--bg); color:var(--text-dim); font-weight:500;}
+.restore-btn:hover{border-color:var(--danger); color:var(--danger);}
+.auto-btn:hover{border-color:var(--accent); color:var(--accent);}
+.auto-btn.on{border-color:var(--accent); background:var(--accent-bg); color:var(--accent);}
+.auto-status{font-family:var(--font-mono); font-size:11px; color:var(--text-dim); margin:-2px 0 10px; min-height:14px;}
+
+.theme-swatches{display:none; flex-wrap:wrap; justify-content:flex-end; gap:5px; width:44px;}
+body.edit-mode .theme-swatches{display:flex;}
+.theme-swatch{
+  width:16px; height:16px; border-radius:50%; cursor:pointer; padding:0;
+  border:2px solid transparent;
+}
+.theme-swatch.active{border-color:var(--text);}
+
+/* Main */
+.main{flex:1; min-width:0; padding:40px clamp(20px,5vw,64px); max-width:900px;}
+.doc-section{position:relative; padding-bottom:56px; padding-top:8px; border-bottom:1px solid var(--border); margin-bottom:40px; scroll-margin-top:20px;}
+.doc-section:last-child{border-bottom:none;}
+.doc-section h1{
+  font-size:26px; margin:0 0 18px; padding-bottom:12px;
+  border-bottom:2px solid var(--accent); scroll-margin-top:20px;
+}
+.sub-section{position:relative; margin-top:28px; padding-top:6px; scroll-margin-top:20px;}
+.sub-section h2{
+  font-size:19px; margin:0 0 12px; color:var(--accent);
+}
+.doc-section p{margin:0 0 14px; font-size:15px;}
+.doc-section strong{color:var(--text);}
+.doc-section em{color:var(--text-muted); font-style:italic;}
+.doc-section ul{margin:0 0 16px; padding:0 0 0 20px;}
+.doc-section li{margin-bottom:7px; font-size:14.5px; color:var(--text-muted);}
+.doc-section li::marker{color:var(--accent);}
+.doc-section p > strong:first-child{
+  display:block;
+  font-family:var(--font-mono);
+  font-size:12.5px;
+  font-weight:700;
+  letter-spacing:.3px;
+  color:var(--accent);
+  background:var(--accent-bg);
+  border-left:3px solid var(--accent);
+  padding:5px 10px;
+  border-radius:0 5px 5px 0;
+  margin:0 0 8px;
+  width:fit-content;
+}
+
+/* Edit mode affordances */
+body.edit-mode [contenteditable="true"]{
+  cursor:text; border-radius:4px; outline:1px dashed transparent;
+}
+body.edit-mode [contenteditable="true"]:hover,
+body.edit-mode [contenteditable="true"]:focus{
+  outline-color:var(--accent); background:var(--surface2);
+}
+.section-controls{display:none; position:absolute; top:6px; right:0; gap:6px; z-index:2;}
+body.edit-mode .section-controls{display:flex;}
+.ctrl-btn{
+  font-family:var(--font-mono);
+  font-size:11px; padding:4px 8px; border-radius:5px; cursor:pointer;
+  border:1px solid var(--border); background:var(--bg-alt); color:var(--text-muted);
+}
+.ctrl-btn:hover{border-color:var(--accent); color:var(--accent);}
+.ctrl-btn.danger:hover{border-color:var(--danger); color:var(--danger); background:var(--danger-bg);}
+
+/* Passo a passo (steps) - só em blocos do tipo "steps" */
+.step-block{position:relative; padding-top:34px;}
+.step-end-wrap{display:none; margin:-14px 0 24px;}
+body.edit-mode .doc-section[data-type="steps"] .step-end-wrap{display:block;}
+.add-step-end-btn{
+  width:100%; padding:8px 10px; font-size:12px; font-weight:600;
+  border-radius:6px; cursor:pointer; border:1px dashed var(--accent);
+  background:var(--accent-bg); color:var(--accent); font-family:var(--font-mono);
+}
+.add-step-end-btn:hover{background:var(--accent); color:#0d0e10;}
+.wiki-image{position:relative; margin:12px 0 20px;}
+.wiki-image img{max-width:100%; border-radius:8px; border:1px solid var(--border); display:block;}
+body.edit-mode .step-block img:hover, body.edit-mode .wiki-image img:hover, .step-block img.resizing, .wiki-image img.resizing{outline:1px dashed var(--accent); outline-offset:2px;}
+body.edit-mode .step-block img.near-corner, body.edit-mode .wiki-image img.near-corner{cursor:nwse-resize;}
+
+/* Editor de imagem (modal) */
+.ie-overlay{position:fixed; inset:0; z-index:100; background:rgba(0,0,0,.82); display:flex; flex-direction:column; font-family:var(--font-mono);}
+.ie-bar{display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; padding:10px 14px; background:var(--bg-alt); border-bottom:1px solid var(--border);}
+.ie-group{display:flex; align-items:center; gap:4px;}
+.ie-group + .ie-group{padding-left:10px; border-left:1px solid var(--border);}
+.ie-btn{
+  font-family:var(--font-mono); font-size:12px; padding:6px 10px; border-radius:6px; cursor:pointer;
+  border:1px solid var(--border); background:var(--bg); color:var(--text-muted);
+}
+.ie-btn:hover:not(:disabled){border-color:var(--accent); color:var(--accent);}
+.ie-btn.active{border-color:var(--accent); background:var(--accent-bg); color:var(--accent);}
+.ie-btn:disabled{opacity:.35; cursor:default;}
+.ie-btn.primary{background:var(--accent); border-color:var(--accent); color:#0d0e10; font-weight:700;}
+.ie-btn.primary:hover:not(:disabled){color:#0d0e10; filter:brightness(1.1);}
+.ie-swatch{width:20px; height:20px; padding:0; border-radius:50%; cursor:pointer; border:2px solid var(--border2);}
+.ie-swatch.active{border-color:var(--text);}
+.ie-color{width:28px; height:24px; padding:0; border:1px solid var(--border); border-radius:4px; background:none; cursor:pointer;}
+.ie-range{width:90px; accent-color:var(--accent);}
+.ie-spacer{flex:1;}
+.ie-hint{font-size:11px; color:var(--text-dim);}
+.ie-stage{flex:1; min-height:0; display:flex; align-items:center; justify-content:center; overflow:hidden; padding:12px;}
+.ie-wrap{position:relative; line-height:0; box-shadow:0 0 0 1px var(--border2); background:#fff;}
+.ie-wrap canvas{display:block; touch-action:none; cursor:crosshair;}
+.ie-text{
+  position:absolute; margin:0; padding:0 2px; border:1px dashed var(--accent); outline:none;
+  background:rgba(0,0,0,.3); font-family:"Geist","Inter",-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-weight:600; line-height:1; min-width:80px;
+}
+
+/* Mobile */
+.menu-toggle{display:none;}
+@media (max-width:860px){
+  .layout{display:block;}
+  .menu-toggle{
+    display:block; position:sticky; top:0; z-index:20;
+    font-family:var(--font-mono);
+    background:var(--bg-alt); border-bottom:1px solid var(--border);
+    padding:12px 16px; font-weight:700; font-size:14px; cursor:pointer;
+  }
+  .sidebar{
+    position:fixed; left:0; top:0; height:100vh; z-index:30;
+    transform:translateX(-100%); transition:transform .2s ease;
+    box-shadow:2px 0 12px rgba(0,0,0,.15);
+  }
+  .sidebar.open{transform:translateX(0);}
+  .main{padding:24px 20px;}
+}
+::-webkit-scrollbar{width:9px;}
+::-webkit-scrollbar-thumb{background:var(--border); border-radius:6px;}
+
+/* Activities (clickable, notes) */
+.activity-p{cursor:pointer; border-radius:6px; transition:background .15s ease;}
+.activity-p:hover{background:var(--surface2);}
+.activity-p.selected{background:var(--accent-bg); box-shadow:inset 0 0 0 1px var(--accent);}
+.activity-p.has-note > strong:first-child::after{
+  content:''; display:inline-block; width:6px; height:6px; margin-left:8px;
+  border-radius:50%; background:var(--accent); vertical-align:middle;
+}
+
+/* Right notes panel */
+body.notes-open .layout{padding-right:var(--notes-w,340px);}
+.notes-panel{
+  position:fixed; top:0; right:0; width:var(--notes-w,340px); height:100vh;
+  background:var(--bg-alt); border-left:1px solid var(--border);
+  transform:translateX(100%); transition:transform .2s ease;
+  z-index:40; display:flex; flex-direction:column;
+}
+.notes-panel.open{transform:translateX(0);}
+.notes-header{
+  padding:16px; border-bottom:1px solid var(--border);
+  display:flex; align-items:flex-start; justify-content:space-between; gap:10px;
+}
+.notes-header h3{
+  margin:0; font-family:var(--font-mono); font-size:13px; line-height:1.4;
+  color:var(--accent); font-weight:700;
+}
+.notes-close{
+  flex:0 0 auto; background:none; border:1px solid var(--border); border-radius:6px;
+  padding:4px 9px; cursor:pointer; color:var(--text-muted); font-size:13px;
+}
+.notes-close:hover{border-color:var(--danger); color:var(--danger);}
+.notes-body{flex:1; padding:16px; display:flex; flex-direction:column; min-height:0;}
+.notes-body textarea{
+  flex:1; width:100%; resize:none; min-height:180px;
+  border:1px solid var(--border); border-radius:6px;
+  background:var(--bg); color:var(--text); padding:10px;
+  font-family:var(--font-sans); font-size:13.5px; line-height:1.55;
+}
+.notes-body textarea:focus{outline:none; border-color:var(--accent);}
+.notes-save-btn{
+  margin-top:10px; padding:9px 10px; font-size:12.5px; font-weight:700;
+  border-radius:6px; cursor:pointer; border:1px solid var(--blue);
+  background:var(--blue-bg); color:var(--blue);
+}
+.notes-save-btn:hover{background:var(--blue); color:#0d0e10;}
+.notes-meta{font-family:var(--font-mono); font-size:10.5px; color:var(--text-dim); margin-top:8px;}
+.notes-empty{padding:20px 16px; color:var(--text-dim); font-size:13px; font-style:italic;}
+@media (max-width:860px){
+  .notes-panel{width:88vw;}
+  body.notes-open .layout{padding-right:0;}
+}
+</style>
+</head>
+<body class="">
+<div class="menu-toggle" id="menuToggle">☰ Índice</div>
+<button class="sidebar-reopen" id="sidebarReopen" title="Mostrar barra lateral">☰</button>
+<div class="layout">
+  <nav class="sidebar" id="sidebar">
+    <div class="resize-handle" id="sidebarResizeHandle"></div>
+    <div class="sidebar-header">
+      <div>
+        <h1 id="docTitle" contenteditable="false">Offline Wiki</h1>
+        <div class="meta" id="docSubtitle" contenteditable="false">Edita e adiciona conteúdo</div>
+      </div>
+      <button class="sidebar-collapse-btn" id="sidebarCollapseBtn" title="Esconder barra lateral">⟨</button>
+      <div class="lock-wrap">
+        <button class="lock-btn" id="lockToggle" title="Desbloquear edição">🔒</button>
+        <div class="theme-swatches" id="themeSwatches">
+          <button class="theme-swatch" type="button" data-theme="verde" style="background:#4ade80" title="Verde"></button>
+          <button class="theme-swatch" type="button" data-theme="azul" style="background:#60a5fa" title="Azul"></button>
+          <button class="theme-swatch" type="button" data-theme="laranja" style="background:#fb923c" title="Laranja"></button>
+          <button class="theme-swatch" type="button" data-theme="cinza" style="background:#9ca3af" title="Cinza"></button>
+        </div>
+      </div>
+    </div>
+    
+    <div class="search-box">
+      <input type="text" id="searchInput" placeholder="Procurar no índice…" autocomplete="off">
+    </div>
+    <div class="add-actions">
+      <button class="add-block-btn" id="addTextBlockBtn" type="button" title="Novo bloco de texto">+ 📓 Texto</button>
+      <button class="add-block-btn" id="addStepsBlockBtn" type="button" title="Novo bloco de passos">+ 🖼️ Passos</button>
+    </div>
+    <ul class="nav" id="navList"></ul>
+    <div class="sidebar-footer">
+      <button class="restore-btn auto-btn" id="autoSaveBtn" type="button" title="Grava sozinho 10 s depois da última alteração (ativa-se no primeiro save)">💾 Auto: desligado</button>
+      <div class="auto-status" id="autoSaveStatus"></div>
+      <button class="restore-btn" id="restoreBtn">↺ Repor conteúdo original</button>
+    </div>
+  </nav>
+  <main class="main" id="main">
+<div class="zone-header" id="zone-text" data-zone="text"><span class="zone-caret">▾</span><span>📓 Wiki</span><span class="zone-count"></span></div>
+<section id="bloco-1" class="doc-section" data-type="text"><div class="section-controls"><button class="ctrl-btn move-up-btn" type="button" title="Mover para cima">↑</button><button class="ctrl-btn move-down-btn" type="button" title="Mover para baixo">↓</button><button class="ctrl-btn add-session-btn" type="button">+ Sessão</button><button class="ctrl-btn danger del-block-btn" type="button">🗑 Bloco</button></div><h1 contenteditable="false">Como usar esta Wiki</h1>
+<p contenteditable="false">Este bloco explica como funciona o documento. Podes editá-lo, apagá-lo ou substituí-lo pelo teu conteúdo assim que já não precisares dele.</p>
+<div id="sessao-1-exemplo" class="sub-section"><div class="section-controls"><button class="ctrl-btn move-up-btn" type="button" title="Mover para cima">↑</button><button class="ctrl-btn move-down-btn" type="button" title="Mover para baixo">↓</button><button class="ctrl-btn danger del-session-btn" type="button">🗑 Sessão</button></div><h2 contenteditable="false">Estrutura: Blocos e Sessões</h2>
+<p contenteditable="false" class="activity-p" data-activity-id="sessao-1-exemplo__act1"><strong>Blocos</strong> Cada "Bloco" é um tema principal (aparece a negrito no índice à esquerda) — corresponde a esta secção com título grande.</p>
+<p contenteditable="false" class="activity-p" data-activity-id="sessao-1-exemplo__act2"><strong>Sessões</strong> Dentro de um bloco, cada "Sessão" é uma subsecção (título verde mais pequeno) — aparece indentada no índice, por baixo do bloco a que pertence.</p>
+<ul><li contenteditable="false">Usa blocos para separar temas grandes.</li><li contenteditable="false">Usa sessões para dividir um tema em partes menores.</li><li contenteditable="false">O documento tem duas zonas fixas: blocos de texto (📓) e blocos de passos com imagem (🖼️). Clica no título de cada zona para a colapsar ou expandir.</li><li contenteditable="false">A barra lateral atualiza-se sozinha quando editas os títulos.</li></ul>
+</div><div id="sessao-2-exemplo" class="sub-section"><div class="section-controls"><button class="ctrl-btn move-up-btn" type="button" title="Mover para cima">↑</button><button class="ctrl-btn move-down-btn" type="button" title="Mover para baixo">↓</button><button class="ctrl-btn danger del-session-btn" type="button">🗑 Sessão</button></div><h2 contenteditable="false">Editar e adicionar conteúdo</h2>
+<p contenteditable="false" class="activity-p" data-activity-id="sessao-2-exemplo__act1"><strong>1. Desbloquear</strong> Clica no 🔒 no topo da barra lateral para entrares em modo de edição (fica 🔓). Todo o texto passa a ser editável diretamente na página.</p>
+<p contenteditable="false" class="activity-p" data-activity-id="sessao-2-exemplo__act2"><strong>2. Adicionar / apagar</strong> Em modo de edição aparecem botões "+ Sessão" e "🗑" em cada bloco/sessão, e os botões "+ 📓 Texto" / "+ 🖼️ Passos" por baixo da pesquisa, na barra lateral.</p>
+<p contenteditable="false" class="activity-p" data-activity-id="sessao-2-exemplo__act3"><strong>3. Gravar</strong> Clica outra vez no 🔓 (agora fica 🔒) para bloquear e gravar. Em Chrome/Edge, na primeira gravação escolhes a pasta do projeto (a que tem este ficheiro); o browser lembra-se dela e nas gravações seguintes o ficheiro é gravado diretamente, com um backup do estado anterior em "bk/" (o Chrome pode pedir uma confirmação rápida de permissão ao voltar a abrir). Noutros browsers descarrega-se o ficheiro e tens de o pôr por cima do original.</p>
+<p contenteditable="false" class="activity-p" data-activity-id="sessao-2-exemplo__act4"><strong>4. Imagens</strong> Em cada sessão de texto, o botão "+ Imagem" insere uma imagem no fim da sessão. Escolhe-a no Finder: em Chrome/Edge é copiada para a pasta "wiki-img/" ao lado deste ficheiro (a pasta do projeto é a que escolheste ao gravar). Arrasta o canto inferior direito da imagem para a redimensionar.</p>
+</div><div id="sessao-3-exemplo" class="sub-section"><div class="section-controls"><button class="ctrl-btn move-up-btn" type="button" title="Mover para cima">↑</button><button class="ctrl-btn move-down-btn" type="button" title="Mover para baixo">↓</button><button class="ctrl-btn danger del-session-btn" type="button">🗑 Sessão</button></div><h2 contenteditable="false">Notas e procura</h2>
+<p contenteditable="false" class="activity-p" data-activity-id="sessao-3-exemplo__act1"><strong>Notas por atividade</strong> Clica em qualquer parágrafo com um título a negrito (como este) para abrir o painel de notas à direita e escreveres algo. Fica marcado com um pontinho verde.</p>
+<p contenteditable="false" class="activity-p" data-activity-id="sessao-3-exemplo__act2"><strong>Procurar</strong> Usa a caixa de pesquisa no topo da barra lateral para filtrar o índice por título de bloco ou sessão.</p>
+</div></section>
+<div class="zone-header" id="zone-steps" data-zone="steps"><span class="zone-caret">▾</span><span>🖼️ Passos</span><span class="zone-count"></span></div>
+<section id="bloco-exemplo" class="doc-section" data-type="steps"><div class="section-controls"><button class="ctrl-btn move-up-btn" type="button" title="Mover para cima">↑</button><button class="ctrl-btn move-down-btn" type="button" title="Mover para baixo">↓</button><button class="ctrl-btn add-session-btn" type="button">+ Sessão</button><button class="ctrl-btn danger del-block-btn" type="button">🗑 Bloco</button></div><h1 contenteditable="false">Como usar este Tutorial</h1>
+<p contenteditable="false">Este bloco mostra como funciona o documento. Podes editá-lo, apagá-lo ou substituí-lo pelo teu próprio tutorial assim que já não precisares dele.</p>
+<div id="sessao-exemplo" class="sub-section"><div class="section-controls"><button class="ctrl-btn move-up-btn" type="button" title="Mover para cima">↑</button><button class="ctrl-btn move-down-btn" type="button" title="Mover para baixo">↓</button><button class="ctrl-btn danger del-session-btn" type="button">🗑 Sessão</button></div><h2 contenteditable="false">Sessão 1 · Passos com imagem e legenda</h2><div class="step-block"><div class="section-controls step-controls"><button class="ctrl-btn add-step-btn" type="button">+ Passo</button><button class="ctrl-btn danger del-step-btn" type="button">🗑 Passo</button></div><p contenteditable="false"><strong>Passo 01</strong> <em>Desbloqueia a edição clicando no 🔒 (fica 🔓).</em></p><img src="wiki-img/img1.png" alt="Passo 01" style="max-width:100%;border-radius:8px;border:1px solid var(--border);margin:4px 0 24px;display:block"></div><div class="step-block"><div class="section-controls step-controls"><button class="ctrl-btn add-step-btn" type="button">+ Passo</button><button class="ctrl-btn danger del-step-btn" type="button">🗑 Passo</button></div><p contenteditable="false"><strong>Passo 02</strong> <em>Clica em "+ Passo" para adicionares um novo passo antes deste, ou "+ Passo (no fim da sessão)" para adicionares ao fundo. Vai-te ser pedido para escolheres uma imagem — escolhe-a no Finder — em Chrome/Edge é copiada para "wiki-img/" ao lado deste ficheiro (a pasta do projeto é a que escolheste ao gravar).</em></p><img src="wiki-img/img2.png" alt="Passo 02" style="max-width:100%;border-radius:8px;border:1px solid var(--border);margin:4px 0 24px;display:block"></div><div class="step-block"><div class="section-controls step-controls"><button class="ctrl-btn add-step-btn" type="button">+ Passo</button><button class="ctrl-btn danger del-step-btn" type="button">🗑 Passo</button></div><p contenteditable="false"><strong>Passo 03</strong> <em>Escreve a legenda diretamente por cima da imagem (a parte a itálico). Os números dos passos atualizam-se sozinhos ao adicionar/apagar. Usa "🗑 Passo" para apagar um passo, e o 🔒 para gravar as alterações no ficheiro.</em></p><img src="wiki-img/img3.png" alt="Passo 03" style="max-width:100%;border-radius:8px;border:1px solid var(--border);margin:4px 0 24px;display:block"></div><div class="step-end-wrap"><button class="ctrl-btn add-step-end-btn" type="button">+ Passo (no fim da sessão)</button></div></div>
+</section>
+  </main>
+  <aside class="notes-panel" id="notesPanel">
+    <div class="resize-handle" id="notesResizeHandle"></div>
+    <div class="notes-header">
+      <h3 id="notesTitle">Selecionar atividade</h3>
+      <button class="notes-close" id="notesClose" title="Fechar">✕</button>
+    </div>
+    <div class="notes-body">
+      <textarea id="notesTextarea" placeholder="Notas…"></textarea>
+      <button class="notes-save-btn" id="notesSaveBtn">💾 Guardar no ficheiro</button>
+      <div class="notes-meta">Notas temporárias, é sempre necessário gravar</div>
+    </div>
+  </aside>
+</div>
+<script>
+(function(){
+  var body = document.body;
+  var main = document.getElementById('main');
+  var navList = document.getElementById('navList');
+  var sidebar = document.getElementById('sidebar');
+  var lockToggle = document.getElementById('lockToggle');
+  var docTitle = document.getElementById('docTitle');
+  var docSubtitle = document.getElementById('docSubtitle');
+  var addTextBlockBtn = document.getElementById('addTextBlockBtn');
+  var addStepsBlockBtn = document.getElementById('addStepsBlockBtn');
+  var restoreBtn = document.getElementById('restoreBtn');
+  var searchInput = document.getElementById('searchInput');
+  var menuToggle = document.getElementById('menuToggle');
+  var notesPanel = document.getElementById('notesPanel');
+  var notesTitle = document.getElementById('notesTitle');
+  var notesTextarea = document.getElementById('notesTextarea');
+  var notesClose = document.getElementById('notesClose');
+  var notesSaveBtn = document.getElementById('notesSaveBtn');
+  var themeSwatches = document.getElementById('themeSwatches');
+  var notesMeta = notesPanel.querySelector('.notes-meta');
+  var notesMetaDefault = notesMeta.textContent;
+  var editing = false;
+  var observer = null;
+  var notesSaveTimer = null;
+  var currentActivityEl = null;
+
+  // Tudo (conteúdo, notas, larguras, tema, estado da sidebar) vive diretamente
+  // no HTML/DOM - não há localStorage. "Guardar ficheiro" (o botão de lock)
+  // descarrega o documento atual, com todo este estado já embutido.
+
+  function genId(prefix){
+    return prefix + '-' + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+  }
+
+  // Cada bloco tem um tipo: data-type="text" (por omissão) ou "steps".
+  function blockType(el){ return el.getAttribute('data-type') === 'steps' ? 'steps' : 'text'; }
+  var ZONES = [{type:'text', label:'📓 Wiki'}, {type:'steps', label:'🖼️ Passos'}];
+  function zoneBlocks(type){
+    return Array.prototype.filter.call(main.querySelectorAll(':scope > .doc-section'), function(sec){
+      return blockType(sec) === type;
+    });
+  }
+
+  function decorateActivities(){
+    var counters = {};
+    main.querySelectorAll('.doc-section, .sub-section').forEach(function(container){
+      container.querySelectorAll(':scope > p').forEach(function(pEl){
+        var strong = pEl.querySelector(':scope > strong:first-child');
+        if(!strong) return;
+        pEl.classList.add('activity-p');
+        if(!pEl.dataset.activityId){
+          var base = container.id || 'root';
+          counters[base] = (counters[base] || 0) + 1;
+          pEl.dataset.activityId = base + '__act' + counters[base];
+        }
+        pEl.classList.toggle('has-note', !!(pEl.dataset.note && pEl.dataset.note.trim()));
+      });
+    });
+  }
+
+  function openNotesFor(pEl){
+    currentActivityEl = pEl;
+    var strong = pEl.querySelector(':scope > strong:first-child');
+    notesTitle.textContent = strong ? strong.textContent.trim() : 'Atividade';
+    notesTextarea.value = pEl.dataset.note || '';
+    main.querySelectorAll('.activity-p.selected').forEach(function(el){ el.classList.remove('selected'); });
+    pEl.classList.add('selected');
+    document.body.classList.add('notes-open');
+    notesPanel.classList.add('open');
+    notesTextarea.focus();
+  }
+
+  function closeNotes(){
+    notesPanel.classList.remove('open');
+    document.body.classList.remove('notes-open');
+    main.querySelectorAll('.activity-p.selected').forEach(function(el){ el.classList.remove('selected'); });
+    currentActivityEl = null;
+  }
+
+  notesClose.addEventListener('click', closeNotes);
+
+  function commitNote(pEl, val){
+    if(val.trim()){ pEl.dataset.note = val; } else { delete pEl.dataset.note; }
+    pEl.classList.toggle('has-note', !!val.trim());
+  }
+  function flushPendingNote(){
+    if(!currentActivityEl) return;
+    clearTimeout(notesSaveTimer);
+    commitNote(currentActivityEl, notesTextarea.value);
+  }
+
+  notesTextarea.addEventListener('input', function(){
+    if(!currentActivityEl) return;
+    var pEl = currentActivityEl;
+    var val = notesTextarea.value;
+    clearTimeout(notesSaveTimer);
+    notesSaveTimer = setTimeout(function(){ commitNote(pEl, val); }, 200);
+  });
+
+  main.addEventListener('click', function(e){
+    if(editing) return;
+    var actP = e.target.closest('.activity-p');
+    if(!actP) return;
+    openNotesFor(actP);
+  });
+
+  // Botões ↑/↓ em falta (por ex. em conteúdo antigo ou escrito à mão)
+  function ensureMoveButtons(bar){
+    if(bar.querySelector('.move-up-btn')) return;
+    bar.insertAdjacentHTML('afterbegin',
+      '<button class="ctrl-btn move-up-btn" type="button" title="Mover para cima">↑</button>' +
+      '<button class="ctrl-btn move-down-btn" type="button" title="Mover para baixo">↓</button>');
+  }
+  function ensureBlockControls(sec){
+    var existing = sec.querySelector(':scope > .section-controls');
+    if(existing){ ensureMoveButtons(existing); return; }
+    var bar = document.createElement('div');
+    bar.className = 'section-controls';
+    bar.innerHTML =
+      '<button class="ctrl-btn move-up-btn" type="button" title="Mover para cima">↑</button>' +
+      '<button class="ctrl-btn move-down-btn" type="button" title="Mover para baixo">↓</button>' +
+      '<button class="ctrl-btn add-session-btn" type="button">+ Sessão</button>' +
+      '<button class="ctrl-btn danger del-block-btn" type="button">🗑 Bloco</button>';
+    sec.insertBefore(bar, sec.firstChild);
+  }
+  function ensureSessionControls(sub){
+    var bar = sub.querySelector(':scope > .section-controls');
+    if(!bar){
+      bar = document.createElement('div');
+      bar.className = 'section-controls';
+      bar.innerHTML =
+        '<button class="ctrl-btn move-up-btn" type="button" title="Mover para cima">↑</button>' +
+        '<button class="ctrl-btn move-down-btn" type="button" title="Mover para baixo">↓</button>' +
+        '<button class="ctrl-btn danger del-session-btn" type="button">🗑 Sessão</button>';
+      sub.insertBefore(bar, sub.firstChild);
+    }
+    ensureMoveButtons(bar);
+    // "+ Lista" e "+ Imagem" só em sessões de blocos de texto (os passos têm as suas imagens)
+    var sec = sub.closest('.doc-section');
+    if(sec && blockType(sec) === 'text'){
+      [['add-list-btn', '+ Lista'], ['add-image-btn', '+ Imagem']].forEach(function(def){
+        if(bar.querySelector('.' + def[0])) return;
+        var btn = document.createElement('button');
+        btn.className = 'ctrl-btn ' + def[0];
+        btn.type = 'button';
+        btn.textContent = def[1];
+        bar.insertBefore(btn, bar.querySelector('.del-session-btn'));
+      });
+    }
+    ensureImageButtons(sub);
+  }
+  // "Trocar" e "Editar" nos controlos de cada imagem (passos e imagens soltas).
+  function ensureImageButtons(root){
+    root.querySelectorAll('.step-controls, .image-controls').forEach(function(bar){
+      if(bar.querySelector('.replace-img-btn')) return;
+      var del = bar.querySelector('.del-step-btn, .del-image-btn');
+      [['replace-img-btn', '🖼 Trocar', 'Substituir por outra imagem'],
+       ['edit-img-btn', '✏ Editar', 'Recortar, anotar, desfocar']].forEach(function(def){
+        var btn = document.createElement('button');
+        btn.className = 'ctrl-btn ' + def[0];
+        btn.type = 'button';
+        btn.title = def[2];
+        btn.textContent = def[1];
+        bar.insertBefore(btn, del);
+      });
+    });
+  }
+  function decorateAll(){
+    main.querySelectorAll(':scope > .doc-section').forEach(ensureBlockControls);
+    main.querySelectorAll('.sub-section').forEach(ensureSessionControls);
+  }
+
+  function rebuildSidebar(){
+    navList.innerHTML = '';
+    ZONES.forEach(function(z){
+      var blocks = zoneBlocks(z.type);
+      var head = document.getElementById('zone-' + z.type);
+      if(head) head.querySelector('.zone-count').textContent = '(' + blocks.length + ')';
+      var zli = document.createElement('li');
+      zli.className = 'nav-zone';
+      zli.setAttribute('data-zone', z.type);
+      zli.innerHTML = '<span class="zone-caret">▾</span><span>' + z.label + '</span><span class="zone-count">(' + blocks.length + ')</span>';
+      navList.appendChild(zli);
+      blocks.forEach(function(sec){
+        var h1 = sec.querySelector(':scope > h1');
+        var li = document.createElement('li');
+        li.className = 'nav-item';
+        li.setAttribute('data-type', z.type);
+        var a = document.createElement('a');
+        a.href = '#' + sec.id;
+        a.className = 'nav-h1';
+        a.textContent = h1 ? h1.textContent.trim() || '(sem título)' : '(sem título)';
+        li.appendChild(a);
+        var subs = sec.querySelectorAll(':scope > .sub-section');
+        if(subs.length){
+          var ul = document.createElement('ul');
+          ul.className = 'nav-sub';
+          subs.forEach(function(sub){
+            var h2 = sub.querySelector(':scope > h2');
+            var subLi = document.createElement('li');
+            var subA = document.createElement('a');
+            subA.href = '#' + sub.id;
+            subA.className = 'nav-h2';
+            subA.textContent = h2 ? h2.textContent.trim() || '(sem título)' : '(sem título)';
+            subLi.appendChild(subA);
+            ul.appendChild(subLi);
+          });
+          li.appendChild(ul);
+        }
+        navList.appendChild(li);
+      });
+    });
+    decorateActivities();
+    attachScrollSpy();
+  }
+
+  function attachScrollSpy(){
+    if(observer) observer.disconnect();
+    var sections = main.querySelectorAll('.doc-section, .sub-section');
+    var links = navList.querySelectorAll('a');
+    function setActive(id){
+      links.forEach(function(a){
+        a.classList.toggle('active', a.getAttribute('href') === '#' + id);
+      });
+    }
+    observer = new IntersectionObserver(function(entries){
+      entries.forEach(function(entry){
+        if(entry.isIntersecting){ setActive(entry.target.id); }
+      });
+    }, { rootMargin: '-10% 0px -70% 0px', threshold: 0 });
+    sections.forEach(function(s){ observer.observe(s); });
+  }
+
+  function setEditMode(on){
+    editing = on;
+    document.body.classList.toggle('edit-mode', on);
+    lockToggle.textContent = on ? '🔓' : '🔒';
+    lockToggle.title = on ? 'Bloquear e gravar ficheiro' : 'Desbloquear edição';
+    var editable = main.querySelectorAll('h1, h2, p, li');
+    editable.forEach(function(el){
+      if(el.closest('.section-controls')) return;
+      el.setAttribute('contenteditable', on ? 'true' : 'false');
+    });
+    docTitle.setAttribute('contenteditable', on ? 'true' : 'false');
+    docSubtitle.setAttribute('contenteditable', on ? 'true' : 'false');
+  }
+
+  // Colar sempre como texto simples (sem cor/tamanho/fonte da origem)
+  function stripFormattingOnPaste(e){
+    if(!editing) return;
+    if(!e.target.closest('[contenteditable="true"]')) return;
+    e.preventDefault();
+    var text = (e.clipboardData || window.clipboardData).getData('text/plain');
+    var sel = window.getSelection();
+    if(!sel.rangeCount) return;
+    var range = sel.getRangeAt(0);
+    range.deleteContents();
+    var node = document.createTextNode(text);
+    range.insertNode(node);
+    range.setStartAfter(node);
+    range.setEndAfter(node);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+  document.addEventListener('paste', stripFormattingOnPaste);
+
+  // HTML do documento sem o estado de colapso das zonas (só de vista, não fica gravado)
+  function serializeDoc(){
+    return '<!DOCTYPE html>\n' + document.documentElement.outerHTML.replace(/<body class="([^"]*)"/, function(m, c){
+      return '<body class="' + c.replace(/\bcollapsed-\w+\b/g, '').replace(/\s+/g, ' ').trim() + '"';
+    });
+  }
+
+  function downloadFile(filename, htmlContent){
+    var html = htmlContent || serializeDoc();
+    var blob = new Blob([html], {type: 'text/html'});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename || 'index.html';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+  }
+
+  function timestamp(){
+    var d = new Date();
+    function pad(n){ return String(n).padStart(2, '0'); }
+    return d.getFullYear() + pad(d.getMonth()+1) + pad(d.getDate()) + '-' + pad(d.getHours()) + pad(d.getMinutes()) + pad(d.getSeconds());
+  }
+
+  // Pasta do projeto (a que contém este HTML), em Chrome/Edge (File System Access
+  // API). Serve para gravar o próprio ficheiro e para copiar imagens para wiki-img/.
+  // Escolhe-se uma vez e o browser guarda-a (IndexedDB, por ficheiro); nas sessões
+  // seguintes só pode pedir uma confirmação rápida de permissão. Nos outros
+  // browsers: descarregar/manual. (Isto é só uma referência à pasta; não é conteúdo.)
+  var projectDir = null;
+  var htmlName = decodeURIComponent(location.pathname.split('/').pop() || '');
+
+  function openHandleDb(){
+    return new Promise(function(resolve, reject){
+      var req = indexedDB.open('gwiki-handles', 1);
+      req.onupgradeneeded = function(){ req.result.createObjectStore('dirs'); };
+      req.onsuccess = function(){ resolve(req.result); };
+      req.onerror = function(){ reject(req.error); };
+    });
+  }
+  async function loadSavedDir(){
+    try{
+      var db = await openHandleDb();
+      return await new Promise(function(resolve){
+        var q = db.transaction('dirs').objectStore('dirs').get(location.pathname);
+        q.onsuccess = function(){ resolve(q.result || null); };
+        q.onerror = function(){ resolve(null); };
+      });
+    }catch(e){ return null; }
+  }
+  async function storeSavedDir(handle){
+    try{
+      var db = await openHandleDb();
+      await new Promise(function(resolve){
+        var tx = db.transaction('dirs', 'readwrite');
+        tx.objectStore('dirs').put(handle, location.pathname);
+        tx.oncomplete = resolve;
+        tx.onerror = resolve;
+      });
+    }catch(e){}
+  }
+
+  async function connectProjectDir(){
+    try{
+      var dir = await window.showDirectoryPicker({mode: 'readwrite'});
+      if(htmlName){
+        try{ await dir.getFileHandle(htmlName); }
+        catch(e){
+          if(!confirm('Esta pasta não contém "' + htmlName + '". Continuar mesmo assim?')) return false;
+        }
+      }
+      projectDir = dir;
+      storeSavedDir(dir);
+      return true;
+    }catch(err){
+      if(err.name !== 'AbortError') alert('Não foi possível aceder à pasta: ' + err.message);
+      return false;
+    }
+  }
+
+  // Garante a pasta do projeto: já ligada nesta sessão, guardada de uma sessão
+  // anterior (pode pedir permissão) ou pedida ao utilizador pela primeira vez.
+  // Devolve 'ready' (sem interação), 'connected' (houve diálogo do browser) ou null.
+  async function ensureProjectDir(){
+    if(projectDir) return 'ready';
+    if(!window.showDirectoryPicker) return null;
+    var saved = await loadSavedDir();
+    if(saved){
+      try{
+        var asked = false;
+        var perm = await saved.queryPermission({mode: 'readwrite'});
+        if(perm !== 'granted'){ asked = true; perm = await saved.requestPermission({mode: 'readwrite'}); }
+        if(perm === 'granted'){
+          if(!htmlName || await saved.getFileHandle(htmlName).then(function(){ return true; }, function(){ return false; })){
+            projectDir = saved;
+            return asked ? 'connected' : 'ready';
+          }
+        }
+      }catch(e){ /* pasta apagada/movida: pede-se de novo */ }
+    }
+    return (await connectProjectDir()) ? 'connected' : null;
+  }
+
+  async function writeTextFile(dir, name, text){
+    var handle = await dir.getFileHandle(name, {create: true});
+    var w = await handle.createWritable();
+    await w.write(text);
+    await w.close();
+  }
+
+  // Grava o documento por cima do próprio ficheiro (com backup do estado
+  // anterior em bk/). Se não der (browser sem a API, pasta recusada, ficheiro
+  // não encontrado), descarrega como antes. Devolve uma mensagem para o utilizador.
+  async function saveDocument(backupHtml){
+    var html = serializeDoc();
+    if(window.showDirectoryPicker && htmlName){
+      try{
+        await ensureProjectDir();
+        if(projectDir){
+          await projectDir.getFileHandle(htmlName); // tem de existir: nunca cria um ficheiro novo
+          var msg = '';
+          if(backupHtml){
+            var bkDir = await projectDir.getDirectoryHandle('bk', {create: true});
+            var bkName = 'bk-' + timestamp() + '.html';
+            await writeTextFile(bkDir, bkName, backupHtml);
+            msg = ' Backup do estado anterior: bk/' + bkName + '.';
+          }
+          await writeTextFile(projectDir, htmlName, html);
+          return {ok: true, text: 'Gravado em ' + htmlName + '.' + msg};
+        }
+      }catch(err){
+        projectDir = null;
+        alert('Não foi possível gravar diretamente (' + err.message + '). O ficheiro vai ser descarregado.');
+      }
+    }
+    if(backupHtml) downloadFile('bk-' + timestamp() + '.html', backupHtml);
+    downloadFile(htmlName || 'index.html', html);
+    return {ok: false, text: 'Ficheiro descarregado' + (backupHtml ? ' (mais um backup do estado anterior)' : '') + '. Substitui o ficheiro original pelo que acabou de ser transferido.'};
+  }
+
+  // Snapshot do documento tirado ao desbloquear (🔓), para servir de backup
+  // "do anterior" quando se voltar a bloquear (🔒).
+  var preEditSnapshot = null;
+
+  lockToggle.addEventListener('click', function(){
+    if(editing){
+      // A bloquear: grava o ficheiro (backup do estado anterior em bk/).
+      flushPendingNote();
+      setEditMode(false);
+      closeNotes();
+      saveDocument(preEditSnapshot).then(function(r){ afterManualSave(r); alert(r.text); });
+    } else {
+      preEditSnapshot = serializeDoc();
+      setEditMode(true);
+    }
+  });
+
+  notesSaveBtn.addEventListener('click', function(){
+    flushPendingNote();
+    saveDocument(null).then(function(r){
+      afterManualSave(r);
+      notesMeta.textContent = '✓ ' + r.text;
+      clearTimeout(notesSaveBtn._flashTimer);
+      notesSaveBtn._flashTimer = setTimeout(function(){ notesMeta.textContent = notesMetaDefault; }, 4000);
+    });
+  });
+
+
+  // Gravação automática: ativa-se no primeiro save direto (Chrome/Edge, pasta ligada)
+  // e grava AUTO_DELAY_MS depois da última alteração (e ao esconder o separador).
+  // Nunca abre diálogos nem descarrega ficheiros. Antes de gravar guarda em bk/ o
+  // ficheiro que está no disco (no máx. 1 a cada AUTO_BACKUP_MS) e mantém só os
+  // AUTO_KEEP backups mais recentes. O estado (ligado/desligado) não vai para o ficheiro.
+  var AUTO_DELAY_MS = 10000, AUTO_BACKUP_MS = 5 * 60000, AUTO_KEEP = 20;
+  var autoSaveBtn = document.getElementById('autoSaveBtn');
+  var autoSaveStatus = document.getElementById('autoSaveStatus');
+  var autoSave = false, autoDirty = false, autoBusy = false, autoTimer = null, lastBackupAt = 0;
+
+  function updateAutoUi(){
+    autoSaveBtn.textContent = '💾 Auto: ' + (autoSave ? 'ligado' : 'desligado');
+    autoSaveBtn.classList.toggle('on', autoSave);
+  }
+  function scheduleAutosave(){
+    clearTimeout(autoTimer);
+    autoTimer = setTimeout(autosaveNow, AUTO_DELAY_MS);
+  }
+  function afterManualSave(r){
+    if(!r.ok) return;
+    clearTimeout(autoTimer);
+    autoDirty = false;
+    if(!autoSave){ autoSave = true; updateAutoUi(); }
+    autoSaveStatus.textContent = '';
+  }
+
+  async function pruneBackups(bkDir){
+    var names = [];
+    for await (var entry of bkDir.entries()){
+      if(entry[1].kind === 'file' && /^bk-.*\.html$/.test(entry[0])) names.push(entry[0]);
+    }
+    names.sort(); // bk-AAAAMMDD-HHMMSS: por ordem cronológica
+    for(var i = 0; i < names.length - AUTO_KEEP; i++) await bkDir.removeEntry(names[i]);
+  }
+
+  async function autosaveNow(){
+    clearTimeout(autoTimer);
+    if(!autoSave || !autoDirty) return;
+    if(autoBusy || imageEditorOpen){ scheduleAutosave(); return; }
+    if(!projectDir){ autoSaveStatus.textContent = '⚠ pasta desligada: grava (🔒) para religar'; return; }
+    autoBusy = true;
+    try{
+      if(await projectDir.queryPermission({mode: 'readwrite'}) !== 'granted') throw new Error('sem permissão na pasta');
+      flushPendingNote();
+      var html = serializeDoc();
+      autoDirty = false; // alterações durante a escrita voltam a marcá-lo
+      var now = Date.now();
+      if(now - lastBackupAt >= AUTO_BACKUP_MS){
+        var current = await (await projectDir.getFileHandle(htmlName)).getFile();
+        var bkDir = await projectDir.getDirectoryHandle('bk', {create: true});
+        await writeTextFile(bkDir, 'bk-' + timestamp() + '.html', await current.text());
+        lastBackupAt = now;
+        await pruneBackups(bkDir);
+      }
+      await writeTextFile(projectDir, htmlName, html);
+      autoSaveStatus.textContent = '✓ guardado ' + new Date().toLocaleTimeString();
+    }catch(err){
+      autoDirty = true;
+      autoSaveStatus.textContent = '⚠ auto-save falhou: ' + err.message;
+    }finally{
+      autoBusy = false;
+    }
+  }
+
+  autoSaveBtn.addEventListener('click', function(){
+    if(!autoSave && !projectDir){ alert('Grava primeiro (🔒) para ligar a pasta do projeto.'); return; }
+    autoSave = !autoSave;
+    if(!autoSave){ clearTimeout(autoTimer); autoSaveStatus.textContent = ''; }
+    updateAutoUi();
+  });
+  var autoObserver = new MutationObserver(function(){
+    if(!autoSave) return;
+    autoDirty = true;
+    scheduleAutosave();
+  });
+  autoObserver.observe(main, {childList: true, subtree: true, characterData: true,
+    attributes: true, attributeFilter: ['src', 'style', 'data-note']});
+  [docTitle, docSubtitle].forEach(function(el){
+    autoObserver.observe(el, {childList: true, subtree: true, characterData: true});
+  });
+  autoObserver.observe(document.documentElement, {attributes: true, attributeFilter: ['data-theme']});
+  document.addEventListener('visibilitychange', function(){
+    if(document.visibilityState === 'hidden') autosaveNow();
+  });
+  window.addEventListener('pagehide', autosaveNow);
+  autoSaveStatus.textContent = '';
+  updateAutoUi();
+
+  function makeSession(type){
+    var sub = document.createElement('div');
+    sub.className = 'sub-section';
+    sub.id = genId('sessao');
+    if(type === 'steps'){
+      sub.innerHTML = '<h2 contenteditable="true">Nova Sessão</h2>' +
+        '<div class="step-block"><div class="section-controls step-controls">' +
+          '<button class="ctrl-btn add-step-btn" type="button">+ Passo</button>' +
+          '<button class="ctrl-btn danger del-step-btn" type="button">🗑 Passo</button>' +
+        '</div>' +
+        '<p contenteditable="true"><strong>Passo 00</strong> <em>legenda...</em></p>' +
+        '<img alt="Passo 00" style="max-width:100%;border-radius:8px;border:1px solid var(--border);margin:4px 0 24px;display:block"></div>' +
+        '<div class="step-end-wrap"><button class="ctrl-btn add-step-end-btn" type="button">+ Passo (no fim da sessão)</button></div>';
+    } else {
+      sub.innerHTML = '<h2 contenteditable="true">Nova Sessão</h2><p contenteditable="true"><strong>Nome da atividade</strong> Descrição da sessão…</p>';
+    }
+    return sub;
+  }
+
+  function addBlock(type){
+    setZoneCollapsed(type, false);
+    var sec = document.createElement('section');
+    sec.className = 'doc-section';
+    sec.id = genId('bloco');
+    sec.setAttribute('data-type', type);
+    if(type === 'steps'){
+      sec.innerHTML = '<h1 contenteditable="true">Novo Bloco de Passos</h1>';
+      sec.appendChild(makeSession('steps'));
+    } else {
+      sec.innerHTML = '<h1 contenteditable="true">Novo Bloco</h1><p contenteditable="true"><strong>Nome da atividade</strong> Descrição do bloco…</p>';
+    }
+    // Cada tipo vive na sua zona: texto antes do cabeçalho dos passos, passos no fim.
+    if(type === 'steps') main.appendChild(sec);
+    else main.insertBefore(sec, document.getElementById('zone-steps'));
+    ensureBlockControls(sec);
+    sec.querySelectorAll('.sub-section').forEach(ensureSessionControls);
+    renumberSteps();
+    rebuildSidebar();
+    sec.querySelector('h1').focus();
+    sec.scrollIntoView({behavior:'smooth', block:'start'});
+  }
+  addTextBlockBtn.addEventListener('click', function(){ addBlock('text'); });
+  addStepsBlockBtn.addEventListener('click', function(){ addBlock('steps'); });
+
+  restoreBtn.addEventListener('click', function(){
+    if(!confirm('Descartar as alterações feitas desde que abriste este ficheiro? (o que já está gravado no ficheiro em disco não é afetado)')) return;
+    location.reload();
+  });
+
+  main.addEventListener('click', function(e){
+    if(!editing) return;
+    var addSessionBtn = e.target.closest('.add-session-btn');
+    var delBlockBtn = e.target.closest('.del-block-btn');
+    var delSessionBtn = e.target.closest('.del-session-btn');
+    var moveUpBtn = e.target.closest('.move-up-btn');
+    var moveDownBtn = e.target.closest('.move-down-btn');
+
+    if(moveUpBtn || moveDownBtn){
+      var bar = (moveUpBtn || moveDownBtn).closest('.section-controls');
+      var owner = bar.parentElement; // .doc-section or .sub-section
+      var isUp = !!moveUpBtn;
+      var sibling = isUp ? owner.previousElementSibling : owner.nextElementSibling;
+      var ownerClass = owner.classList.contains('sub-section') ? 'sub-section' : 'doc-section';
+      if(sibling && sibling.classList.contains(ownerClass)){
+        if(isUp) owner.parentNode.insertBefore(owner, sibling);
+        else owner.parentNode.insertBefore(sibling, owner);
+        rebuildSidebar();
+        owner.scrollIntoView({behavior:'smooth', block:'center'});
+      }
+      return;
+    }
+
+    if(addSessionBtn){
+      var sec = addSessionBtn.closest('.doc-section');
+      var sub = makeSession(blockType(sec));
+      sec.appendChild(sub);
+      ensureSessionControls(sub);
+      rebuildSidebar();
+      sub.querySelector('h2').focus();
+      sub.scrollIntoView({behavior:'smooth', block:'center'});
+      return;
+    }
+    if(delBlockBtn){
+      var secToDelete = delBlockBtn.closest('.doc-section');
+      var title = secToDelete.querySelector('h1');
+      if(!confirm('Apagar o bloco "' + (title ? title.textContent.trim() : '') + '" e todas as suas sessões?')) return;
+      secToDelete.remove();
+      rebuildSidebar();
+      return;
+    }
+    if(delSessionBtn){
+      var subToDelete = delSessionBtn.closest('.sub-section');
+      var h2 = subToDelete.querySelector('h2');
+      if(!confirm('Apagar a sessão "' + (h2 ? h2.textContent.trim() : '') + '"?')) return;
+      subToDelete.remove();
+      rebuildSidebar();
+      return;
+    }
+  });
+
+  main.addEventListener('input', function(e){
+    if(!editing) return;
+    if(e.target.tagName === 'H1' || e.target.tagName === 'H2'){
+      rebuildSidebar();
+    }
+  });
+
+  menuToggle.addEventListener('click', function(){ sidebar.classList.toggle('open'); });
+  sidebar.addEventListener('click', function(e){
+    if(e.target.tagName === 'A' && window.innerWidth <= 860){ sidebar.classList.remove('open'); }
+  });
+
+  // Collapse / reopen left sidebar
+  var sidebarCollapseBtn = document.getElementById('sidebarCollapseBtn');
+  var sidebarReopen = document.getElementById('sidebarReopen');
+  function setSidebarCollapsed(on){
+    document.body.classList.toggle('sidebar-collapsed', on);
+  }
+  sidebarCollapseBtn.addEventListener('click', function(){ setSidebarCollapsed(true); });
+  sidebarReopen.addEventListener('click', function(){ setSidebarCollapsed(false); });
+
+  // Resizable sidebars (drag handles). A largura fica gravada como style
+  // inline no próprio elemento - faz parte do HTML, não de localStorage.
+  function makeResizable(handle, target, opts){
+    handle.addEventListener('pointerdown', function(e){
+      e.preventDefault();
+      handle.setPointerCapture(e.pointerId);
+      handle.classList.add('dragging');
+      function onMove(ev){
+        var w = (opts.side === 'right')
+          ? (ev.clientX - target.getBoundingClientRect().left)
+          : (window.innerWidth - ev.clientX);
+        w = Math.max(opts.min, Math.min(opts.max, w));
+        target.style.width = w + 'px';
+        if(opts.varName){ document.documentElement.style.setProperty(opts.varName, w + 'px'); }
+      }
+      function onUp(){
+        handle.releasePointerCapture(e.pointerId);
+        handle.classList.remove('dragging');
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
+      }
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup', onUp);
+    });
+  }
+  makeResizable(document.getElementById('sidebarResizeHandle'), sidebar,
+    { side:'right', min:200, max:480, varName:'--sidebar-w' });
+  makeResizable(document.getElementById('notesResizeHandle'), notesPanel,
+    { side:'left', min:260, max:600, varName:'--notes-w' });
+
+  searchInput.addEventListener('input', function(){
+    var q = this.value.trim().toLowerCase();
+    navList.querySelectorAll(':scope > li.nav-item').forEach(function(li){
+      var h1Link = li.querySelector('a.nav-h1');
+      var subLis = li.querySelectorAll('.nav-sub li');
+      var h1Match = h1Link && h1Link.textContent.toLowerCase().indexOf(q) !== -1;
+      var anySubMatch = false;
+      subLis.forEach(function(subLi){
+        var a = subLi.querySelector('a.nav-h2');
+        var match = a.textContent.toLowerCase().indexOf(q) !== -1;
+        subLi.style.display = (q === '' || match || h1Match) ? '' : 'none';
+        if(match) anySubMatch = true;
+      });
+      li.style.display = (q === '' || h1Match || anySubMatch) ? '' : 'none';
+    });
+  });
+
+  // Passo a passo: adicionar/remover passos (imagem + legenda) - blocos do tipo steps
+  var stepFileInput = document.createElement('input');
+  stepFileInput.type = 'file';
+  stepFileInput.accept = 'image/*';
+  stepFileInput.style.display = 'none';
+  document.body.appendChild(stepFileInput);
+  var pendingStepInsert = null; // { mode: 'before'|'append', ref: element }
+  var pendingImageSession = null; // sessão de texto à espera de uma imagem
+  var pendingReplaceImg = null; // <img> à espera de ser substituída
+
+  // Numeração por sessão: cada sessão de passos começa no Passo 01.
+  function renumberSteps(){
+    main.querySelectorAll('.sub-section').forEach(function(sub){
+      sub.querySelectorAll('.step-block').forEach(function(block, i){
+        var n = String(i + 1).padStart(2, '0');
+        var strong = block.querySelector('strong');
+        if(strong) strong.textContent = 'Passo ' + n;
+        var img = block.querySelector('img');
+        if(img) img.alt = 'Passo ' + n;
+      });
+    });
+  }
+
+  function buildStepBlock(src){
+    var block = document.createElement('div');
+    block.className = 'step-block';
+    block.innerHTML =
+      '<div class="section-controls step-controls">' +
+        '<button class="ctrl-btn add-step-btn" type="button">+ Passo</button>' +
+        '<button class="ctrl-btn danger del-step-btn" type="button">🗑 Passo</button>' +
+      '</div>' +
+      '<p contenteditable="true"><strong>Passo 00</strong> <em>legenda...</em></p>' +
+      '<img src="' + src + '" alt="Passo 00" ' +
+      'style="max-width:100%;border-radius:8px;border:1px solid var(--border);margin:4px 0 24px;display:block">';
+    return block;
+  }
+
+  // Imagens: em Chrome/Edge a imagem escolhida é copiada para wiki-img/ dentro da
+  // pasta deste HTML. Nos outros browsers só se lê o nome e a cópia é manual.
+  var IMG_DIR = 'wiki-img';
+
+  // Devolve o src (já codificado) da imagem, ou null se falhou/cancelou.
+  async function storeImage(file){
+    if(!window.showDirectoryPicker){
+      alert('Este browser não copia ficheiros. Copia "' + file.name + '" para a pasta "' + IMG_DIR + '/" ao lado deste HTML.');
+      return IMG_DIR + '/' + encodeURIComponent(file.name);
+    }
+    try{
+      var dir = await projectDir.getDirectoryHandle(IMG_DIR, {create: true});
+      var dot = file.name.lastIndexOf('.');
+      var base = dot > 0 ? file.name.slice(0, dot) : file.name;
+      var ext = dot > 0 ? file.name.slice(dot) : '';
+      var name = file.name, n = 1;
+      for(;;){
+        try{ await dir.getFileHandle(name); name = base + '-' + (++n) + ext; }
+        catch(e){ break; } // não existe: nome livre
+      }
+      var handle = await dir.getFileHandle(name, {create: true});
+      var w = await handle.createWritable();
+      await w.write(file);
+      await w.close();
+      return IMG_DIR + '/' + encodeURIComponent(name);
+    }catch(err){
+      alert('Não foi possível copiar a imagem: ' + err.message);
+      return null;
+    }
+  }
+
+  // Se a pasta já está ligada, abre-se logo o seletor de imagens. Se houve um
+  // diálogo do browser (pasta ou permissão), o clique original já expirou, por
+  // isso a imagem escolhe-se num segundo clique.
+  function openImagePicker(){
+    if(!window.showDirectoryPicker || projectDir){ stepFileInput.click(); return; }
+    ensureProjectDir().then(function(state){
+      if(state === 'ready'){ stepFileInput.click(); return; }
+      if(state === 'connected') alert('Pasta ligada. Clica outra vez para escolher a imagem.');
+      pendingImageSession = null;
+      pendingStepInsert = null;
+      pendingReplaceImg = null;
+    });
+  }
+
+  stepFileInput.addEventListener('change', function(){
+    if(!this.files.length) return;
+    var file = this.files[0];
+    var imageSession = pendingImageSession, stepInsert = pendingStepInsert, replaceImg = pendingReplaceImg;
+    pendingImageSession = null;
+    pendingStepInsert = null;
+    pendingReplaceImg = null;
+    this.value = '';
+    if(!imageSession && !stepInsert && !replaceImg) return;
+    storeImage(file).then(function(src){
+      if(!src) return;
+      if(replaceImg){
+        // Só muda o ficheiro: largura, legenda e posição mantêm-se.
+        if(main.contains(replaceImg)) replaceImg.setAttribute('src', src);
+        return;
+      }
+      if(imageSession){
+        var wrap = document.createElement('div');
+        wrap.className = 'wiki-image';
+        wrap.innerHTML =
+          '<div class="section-controls image-controls">' +
+            '<button class="ctrl-btn danger del-image-btn" type="button">🗑 Imagem</button>' +
+          '</div>' +
+          '<img src="' + src + '" alt="' + file.name.replace(/\.[^.]+$/, '').replace(/[&<>"]/g, '') + '">';
+        ensureImageButtons(wrap);
+        imageSession.appendChild(wrap);
+        wrap.scrollIntoView({behavior:'smooth', block:'center'});
+        return;
+      }
+      var block = buildStepBlock(src);
+      ensureImageButtons(block);
+      if(stepInsert.mode === 'before'){
+        stepInsert.ref.parentNode.insertBefore(block, stepInsert.ref);
+      } else {
+        stepInsert.ref.parentNode.insertBefore(block, stepInsert.ref.nextSibling);
+      }
+      renumberSteps();
+      block.scrollIntoView({behavior:'smooth', block:'center'});
+    });
+  });
+
+  main.addEventListener('click', function(e){
+    if(!editing) return;
+    var addStepBtn = e.target.closest('.add-step-btn');
+    var addStepEndBtn = e.target.closest('.add-step-end-btn');
+    var delStepBtn = e.target.closest('.del-step-btn');
+    var addImageBtn = e.target.closest('.add-image-btn');
+    var addListBtn = e.target.closest('.add-list-btn');
+    var delImageBtn = e.target.closest('.del-image-btn');
+    var replaceImgBtn = e.target.closest('.replace-img-btn');
+    var editImgBtn = e.target.closest('.edit-img-btn');
+
+    if(replaceImgBtn){
+      pendingImageSession = null;
+      pendingStepInsert = null;
+      pendingReplaceImg = replaceImgBtn.closest('.step-block, .wiki-image').querySelector('img');
+      openImagePicker();
+      return;
+    }
+    if(editImgBtn){
+      openImageEditor(editImgBtn.closest('.step-block, .wiki-image').querySelector('img'));
+      return;
+    }
+    if(addListBtn){
+      var listSub = addListBtn.closest('.sub-section');
+      var ul = document.createElement('ul');
+      ul.innerHTML = '<li contenteditable="true">Novo ponto</li>';
+      listSub.appendChild(ul);
+      var li = ul.firstChild;
+      li.focus();
+      window.getSelection().selectAllChildren(li);
+      return;
+    }
+    if(addImageBtn){
+      pendingStepInsert = null;
+      pendingReplaceImg = null;
+      pendingImageSession = addImageBtn.closest('.sub-section');
+      openImagePicker();
+      return;
+    }
+    if(delImageBtn){
+      if(!confirm('Apagar esta imagem?')) return;
+      delImageBtn.closest('.wiki-image').remove();
+      return;
+    }
+
+    if(addStepBtn){
+      pendingImageSession = null;
+      pendingReplaceImg = null;
+      pendingStepInsert = { mode: 'before', ref: addStepBtn.closest('.step-block') };
+      openImagePicker();
+      return;
+    }
+    if(addStepEndBtn){
+      pendingImageSession = null;
+      pendingReplaceImg = null;
+      pendingStepInsert = { mode: 'append', ref: addStepEndBtn.closest('.step-end-wrap') };
+      openImagePicker();
+      return;
+    }
+    if(delStepBtn){
+      var stepToDelete = delStepBtn.closest('.step-block');
+      if(!confirm('Apagar este passo (imagem e legenda)?')) return;
+      stepToDelete.remove();
+      renumberSteps();
+      return;
+    }
+  });
+
+  // Editor de imagem (modal com canvas): recortar, seta, retângulo, elipse, caneta,
+  // texto e desfocar. A imagem é lida pela pasta do projeto (em file:// um <img>
+  // "suja" o canvas e não deixaria exportar). O resultado grava-se como novo PNG em
+  // wiki-img/ (o original fica intacto) e só o src da <img> muda.
+  var IE_FONT = '"Geist","Inter",-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif';
+  var IE_COLORS = ['#ef4444', '#facc15', '#4ade80', '#60a5fa', '#111111', '#ffffff'];
+  var IE_TOOLS = [
+    ['crop', '✂ Recortar', 'Arrasta a área a manter · Enter ou ✓ aplica'],
+    ['arrow', '➜ Seta', 'Arrasta do início até à ponta'],
+    ['rect', '▭ Retângulo', 'Arrasta para desenhar'],
+    ['ellipse', '◯ Elipse', 'Arrasta para desenhar'],
+    ['pen', '✎ Caneta', 'Desenha à mão livre'],
+    ['text', 'T Texto', 'Clica onde queres o texto · Enter confirma · Esc cancela'],
+    ['blur', '▦ Desfocar', 'Arrasta sobre a zona a esconder · espessura = intensidade']
+  ];
+  var IE_MAX_HISTORY = 20;
+  var imageEditorOpen = false;
+
+  async function readImageBitmap(src){
+    if(/^(data|blob):/i.test(src)) return createImageBitmap(await (await fetch(src)).blob());
+    if(/^[a-z][a-z0-9+.-]*:|^\//i.test(src)) throw new Error('caminho não suportado');
+    var parts = src.split(/[?#]/)[0].split('/').filter(function(p){ return p && p !== '.'; });
+    var dir = projectDir;
+    for(var i = 0; i < parts.length - 1; i++){
+      if(parts[i] === '..') throw new Error('caminho fora da pasta do projeto');
+      dir = await dir.getDirectoryHandle(decodeURIComponent(parts[i]));
+    }
+    var handle = await dir.getFileHandle(decodeURIComponent(parts[parts.length - 1]));
+    return createImageBitmap(await handle.getFile());
+  }
+
+  async function openImageEditor(img){
+    if(imageEditorOpen || !img) return;
+    var src = img.getAttribute('src');
+    if(!src){ alert('Esta imagem ainda não tem ficheiro. Usa "🖼 Trocar" primeiro.'); return; }
+    if(!window.showDirectoryPicker){ alert('Editar imagens requer Chrome ou Edge (acesso à pasta do projeto).'); return; }
+    imageEditorOpen = true;
+    try{
+      await ensureProjectDir();
+      if(!projectDir){ imageEditorOpen = false; return; }
+      runImageEditor(img, await readImageBitmap(src), src);
+    }catch(err){
+      imageEditorOpen = false;
+      alert('Não foi possível abrir a imagem (' + err.message + ').');
+    }
+  }
+
+  function runImageEditor(img, bitmap, src){
+    var work = document.createElement('canvas');
+    work.width = bitmap.width;
+    work.height = bitmap.height;
+    work.getContext('2d').drawImage(bitmap, 0, 0);
+    if(bitmap.close) bitmap.close();
+
+    var history = [], redoStack = [];
+    var tool = 'arrow', color = IE_COLORS[0], size = 4;
+    var drag = null;       // gesto em curso: {x0, y0, x1, y1, pts, k}
+    var cropRect = null;   // {x, y, w, h} em px da imagem
+    var textBox = null;    // {el, x, y, fs, color}
+
+    var overlay = document.createElement('div');
+    overlay.className = 'ie-overlay';
+    overlay.innerHTML =
+      '<div class="ie-bar">' +
+        '<div class="ie-group">' + IE_TOOLS.map(function(t){
+          return '<button class="ie-btn" type="button" data-tool="' + t[0] + '">' + t[1] + '</button>';
+        }).join('') + '</div>' +
+        '<div class="ie-group">' + IE_COLORS.map(function(c){
+          return '<button class="ie-swatch" type="button" data-color="' + c + '" style="background:' + c + '" title="' + c + '"></button>';
+        }).join('') + '<input class="ie-color" type="color" title="Cor personalizada"></div>' +
+        '<div class="ie-group"><span class="ie-hint">Espessura</span><input class="ie-range" type="range" min="1" max="16" value="' + size + '"></div>' +
+        '<div class="ie-group">' +
+          '<button class="ie-btn ie-undo" type="button" title="Anular (Ctrl/Cmd+Z)">↶</button>' +
+          '<button class="ie-btn ie-redo" type="button" title="Refazer (Ctrl/Cmd+Shift+Z)">↷</button>' +
+          '<button class="ie-btn ie-crop-apply" type="button" hidden>✓ Aplicar recorte</button>' +
+        '</div>' +
+        '<div class="ie-spacer"></div>' +
+        '<span class="ie-hint ie-hint-text"></span>' +
+        '<button class="ie-btn ie-cancel" type="button">Cancelar</button>' +
+        '<button class="ie-btn primary ie-save" type="button">Gravar</button>' +
+      '</div>' +
+      '<div class="ie-stage"><div class="ie-wrap"><canvas></canvas></div></div>';
+    document.body.appendChild(overlay);
+
+    var stage = overlay.querySelector('.ie-stage');
+    var wrap = overlay.querySelector('.ie-wrap');
+    var cv = overlay.querySelector('canvas');
+    var colorInput = overlay.querySelector('.ie-color');
+    var undoBtn = overlay.querySelector('.ie-undo');
+    var redoBtn = overlay.querySelector('.ie-redo');
+    var cropApplyBtn = overlay.querySelector('.ie-crop-apply');
+    var saveBtn = overlay.querySelector('.ie-save');
+    var hintEl = overlay.querySelector('.ie-hint-text');
+    colorInput.value = color;
+
+    // px da imagem por px do ecrã (a imagem é mostrada reduzida/ampliada)
+    function scale(){ return work.width / cv.getBoundingClientRect().width; }
+    function pos(e){
+      var r = cv.getBoundingClientRect();
+      return {
+        x: Math.max(0, Math.min(work.width, (e.clientX - r.left) * work.width / r.width)),
+        y: Math.max(0, Math.min(work.height, (e.clientY - r.top) * work.height / r.height))
+      };
+    }
+    function layout(){
+      var f = Math.min((stage.clientWidth - 24) / work.width, (stage.clientHeight - 24) / work.height, 2);
+      if(!(f > 0)) f = 1;
+      cv.style.width = Math.round(work.width * f) + 'px';
+      cv.style.height = Math.round(work.height * f) + 'px';
+    }
+
+    function pixelate(c, x, y, w, h, block){
+      x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h);
+      if(w < 2 || h < 2) return;
+      var t = document.createElement('canvas');
+      t.width = Math.max(1, Math.round(w / block));
+      t.height = Math.max(1, Math.round(h / block));
+      var tc = t.getContext('2d');
+      tc.imageSmoothingQuality = 'high';
+      tc.drawImage(c.canvas, x, y, w, h, 0, 0, t.width, t.height);
+      c.save();
+      c.imageSmoothingEnabled = false;
+      c.drawImage(t, 0, 0, t.width, t.height, x, y, w, h);
+      c.restore();
+    }
+
+    // Desenha uma forma no contexto c: em pré-visualização (canvas visível) ou
+    // definitivamente (canvas de trabalho).
+    function drawShape(c, s, preview){
+      var x = Math.min(s.x0, s.x1), y = Math.min(s.y0, s.y1);
+      var w = Math.abs(s.x1 - s.x0), h = Math.abs(s.y1 - s.y0);
+      c.save();
+      c.strokeStyle = c.fillStyle = s.color;
+      c.lineWidth = s.lw;
+      c.lineCap = c.lineJoin = 'round';
+      if(s.tool === 'rect'){
+        c.strokeRect(x, y, w, h);
+      } else if(s.tool === 'ellipse'){
+        c.beginPath();
+        c.ellipse(x + w / 2, y + h / 2, w / 2, h / 2, 0, 0, Math.PI * 2);
+        c.stroke();
+      } else if(s.tool === 'pen'){
+        c.beginPath();
+        c.moveTo(s.pts[0].x, s.pts[0].y);
+        for(var i = 1; i < s.pts.length; i++) c.lineTo(s.pts[i].x, s.pts[i].y);
+        if(s.pts.length === 1) c.lineTo(s.pts[0].x, s.pts[0].y); // clique: ponto
+        c.stroke();
+      } else if(s.tool === 'arrow'){
+        var dx = s.x1 - s.x0, dy = s.y1 - s.y0, len = Math.hypot(dx, dy);
+        if(len >= 1){
+          var a = Math.atan2(dy, dx);
+          var hl = Math.min(Math.max(s.lw * 4, 10 * s.k), len * 0.7);
+          c.beginPath();
+          c.moveTo(s.x0, s.y0);
+          c.lineTo(s.x1 - Math.cos(a) * hl * 0.7, s.y1 - Math.sin(a) * hl * 0.7);
+          c.stroke();
+          c.beginPath();
+          c.moveTo(s.x1, s.y1);
+          c.lineTo(s.x1 - hl * Math.cos(a - 0.45), s.y1 - hl * Math.sin(a - 0.45));
+          c.lineTo(s.x1 - hl * Math.cos(a + 0.45), s.y1 - hl * Math.sin(a + 0.45));
+          c.closePath();
+          c.fill();
+        }
+      } else if(s.tool === 'blur'){
+        if(preview){
+          c.strokeStyle = '#4ade80';
+          c.lineWidth = 2 * s.k;
+          c.setLineDash([6 * s.k, 4 * s.k]);
+          c.strokeRect(x, y, w, h);
+        } else {
+          pixelate(c, x, y, w, h, Math.max(6, Math.round(s.lw * 2.5)));
+        }
+      }
+      c.restore();
+    }
+
+    function dragShape(d){
+      return { tool: tool, x0: d.x0, y0: d.y0, x1: d.x1, y1: d.y1, pts: d.pts, color: color, lw: size * d.k, k: d.k };
+    }
+
+    function render(){
+      if(cv.width !== work.width || cv.height !== work.height){
+        cv.width = work.width;
+        cv.height = work.height;
+        layout();
+      }
+      var c = cv.getContext('2d');
+      c.clearRect(0, 0, cv.width, cv.height);
+      c.drawImage(work, 0, 0);
+      if(tool === 'crop'){
+        var r = drag ? { x: Math.min(drag.x0, drag.x1), y: Math.min(drag.y0, drag.y1), w: Math.abs(drag.x1 - drag.x0), h: Math.abs(drag.y1 - drag.y0) } : cropRect;
+        if(r){
+          var kk = scale();
+          c.save();
+          c.fillStyle = 'rgba(0,0,0,.55)';
+          c.beginPath();
+          c.rect(0, 0, cv.width, cv.height);
+          c.rect(r.x, r.y, r.w, r.h);
+          c.fill('evenodd');
+          c.strokeStyle = '#fff';
+          c.lineWidth = 2 * kk;
+          c.setLineDash([8 * kk, 5 * kk]);
+          c.strokeRect(r.x, r.y, r.w, r.h);
+          c.restore();
+        }
+      } else if(drag){
+        drawShape(c, dragShape(drag), true);
+      }
+      undoBtn.disabled = !history.length;
+      redoBtn.disabled = !redoStack.length;
+      cropApplyBtn.hidden = !(tool === 'crop' && cropRect);
+    }
+
+    function pushHistory(){
+      var snap = document.createElement('canvas');
+      snap.width = work.width;
+      snap.height = work.height;
+      snap.getContext('2d').drawImage(work, 0, 0);
+      history.push(snap);
+      if(history.length > IE_MAX_HISTORY) history.shift();
+      redoStack = [];
+    }
+    function undo(){
+      commitText();
+      if(!history.length) return;
+      redoStack.push(work);
+      work = history.pop();
+      cropRect = null;
+      render();
+    }
+    function redo(){
+      commitText();
+      if(!redoStack.length) return;
+      history.push(work);
+      work = redoStack.pop();
+      cropRect = null;
+      render();
+    }
+
+    function applyCrop(){
+      if(!cropRect) return;
+      var x = Math.round(cropRect.x), y = Math.round(cropRect.y);
+      var w = Math.min(work.width - x, Math.max(1, Math.round(cropRect.w)));
+      var h = Math.min(work.height - y, Math.max(1, Math.round(cropRect.h)));
+      pushHistory();
+      var n = document.createElement('canvas');
+      n.width = w;
+      n.height = h;
+      n.getContext('2d').drawImage(work, x, y, w, h, 0, 0, w, h);
+      work = n;
+      cropRect = null;
+      render();
+    }
+
+    function startText(x, y, k){
+      commitText();
+      var fs = (size * 4 + 10) * k;
+      var el = document.createElement('input');
+      el.type = 'text';
+      el.className = 'ie-text';
+      el.style.color = color;
+      el.style.fontSize = (fs / k) + 'px';
+      el.style.left = (x / k - 3) + 'px';
+      el.style.top = (y / k - 1) + 'px';
+      el.style.width = '120px';
+      el.addEventListener('input', function(){
+        el.style.width = Math.max(120, el.value.length * fs / k * 0.62 + 24) + 'px';
+      });
+      el.addEventListener('keydown', function(ev){
+        ev.stopPropagation();
+        if(ev.key === 'Enter'){ ev.preventDefault(); commitText(); }
+        else if(ev.key === 'Escape'){ ev.preventDefault(); cancelText(); }
+      });
+      el.addEventListener('blur', commitText);
+      wrap.appendChild(el);
+      textBox = { el: el, x: x, y: y, fs: fs, color: color };
+      el.focus();
+    }
+    function cancelText(){
+      if(!textBox) return;
+      var t = textBox;
+      textBox = null;
+      t.el.remove();
+    }
+    function commitText(){
+      if(!textBox) return;
+      var t = textBox, value = t.el.value;
+      cancelText();
+      if(!value.trim()) return;
+      pushHistory();
+      var c = work.getContext('2d');
+      c.save();
+      c.font = '600 ' + t.fs + 'px ' + IE_FONT;
+      c.textBaseline = 'top';
+      c.fillStyle = t.color;
+      c.fillText(value, t.x, t.y);
+      c.restore();
+      render();
+    }
+
+    function setTool(name){
+      commitText();
+      tool = name;
+      cropRect = null;
+      overlay.querySelectorAll('[data-tool]').forEach(function(b){
+        b.classList.toggle('active', b.getAttribute('data-tool') === name);
+      });
+      hintEl.textContent = IE_TOOLS.filter(function(t){ return t[0] === name; })[0][2];
+      cv.style.cursor = name === 'text' ? 'text' : 'crosshair';
+      render();
+    }
+    function setColor(c){
+      color = c;
+      colorInput.value = c;
+      overlay.querySelectorAll('.ie-swatch').forEach(function(b){
+        b.classList.toggle('active', b.getAttribute('data-color') === c);
+      });
+    }
+
+    cv.addEventListener('pointerdown', function(e){
+      if(e.button !== 0) return;
+      e.preventDefault();
+      commitText();
+      var p = pos(e);
+      cv.setPointerCapture(e.pointerId);
+      drag = { x0: p.x, y0: p.y, x1: p.x, y1: p.y, pts: [p], k: scale() };
+      if(tool === 'crop') cropRect = null;
+      render();
+    });
+    cv.addEventListener('pointermove', function(e){
+      if(!drag) return;
+      var p = pos(e);
+      drag.x1 = p.x;
+      drag.y1 = p.y;
+      if(tool === 'pen') drag.pts.push(p);
+      render();
+    });
+    cv.addEventListener('pointerup', function(e){
+      if(!drag) return;
+      var d = drag, p = pos(e);
+      drag = null;
+      d.x1 = p.x;
+      d.y1 = p.y;
+      var w = Math.abs(d.x1 - d.x0), h = Math.abs(d.y1 - d.y0), min = 4 * d.k;
+      if(tool === 'text'){ startText(d.x0, d.y0, d.k); return; }
+      if(tool === 'crop'){
+        cropRect = (w >= min && h >= min) ? { x: Math.min(d.x0, d.x1), y: Math.min(d.y0, d.y1), w: w, h: h } : null;
+        render();
+        return;
+      }
+      if(tool !== 'pen' && w < min && h < min){ render(); return; } // clique sem arrastar
+      pushHistory();
+      drawShape(work.getContext('2d'), dragShape(d), false);
+      render();
+    });
+    cv.addEventListener('pointercancel', function(){ drag = null; render(); });
+
+    overlay.addEventListener('click', function(e){
+      var toolBtn = e.target.closest('[data-tool]');
+      var swatch = e.target.closest('.ie-swatch');
+      if(toolBtn) setTool(toolBtn.getAttribute('data-tool'));
+      else if(swatch) setColor(swatch.getAttribute('data-color'));
+    });
+    colorInput.addEventListener('input', function(){ setColor(colorInput.value); });
+    overlay.querySelector('.ie-range').addEventListener('input', function(){ size = +this.value; });
+    undoBtn.addEventListener('click', undo);
+    redoBtn.addEventListener('click', redo);
+    cropApplyBtn.addEventListener('click', applyCrop);
+    overlay.addEventListener('wheel', function(e){ e.preventDefault(); }, {passive: false});
+
+    function close(){
+      document.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('resize', layout);
+      overlay.remove();
+      imageEditorOpen = false;
+    }
+    function cancel(){
+      commitText();
+      if(history.length && !confirm('Descartar as alterações a esta imagem?')) return;
+      close();
+    }
+    async function save(){
+      commitText();
+      if(!history.length){ close(); return; }
+      saveBtn.disabled = true;
+      var blob = await new Promise(function(resolve){ work.toBlob(resolve, 'image/png'); });
+      if(!blob){
+        alert('Não foi possível exportar a imagem.');
+        saveBtn.disabled = false;
+        return;
+      }
+      var base = /^(data|blob):/i.test(src) ? 'imagem' :
+        decodeURIComponent(src.split(/[?#]/)[0].split('/').pop()).replace(/\.[^.]+$/, '').replace(/-edit(-\d+)?$/, '');
+      var newSrc = await storeImage(new File([blob], (base || 'imagem') + '-edit.png', {type: 'image/png'}));
+      if(!newSrc){ saveBtn.disabled = false; return; } // erro já mostrado por storeImage
+      img.setAttribute('src', newSrc);
+      close();
+    }
+    overlay.querySelector('.ie-cancel').addEventListener('click', cancel);
+    saveBtn.addEventListener('click', save);
+
+    function onKey(e){
+      if(textBox && e.target === textBox.el) return;
+      var mod = e.metaKey || e.ctrlKey, key = e.key.toLowerCase();
+      if(mod && key === 'z'){ e.preventDefault(); if(e.shiftKey) redo(); else undo(); }
+      else if(mod && key === 'y'){ e.preventDefault(); redo(); }
+      else if(key === 'escape'){ e.preventDefault(); cancel(); }
+      else if(key === 'enter' && tool === 'crop' && cropRect && e.target.tagName !== 'BUTTON'){ e.preventDefault(); applyCrop(); }
+    }
+    document.addEventListener('keydown', onKey, true);
+    window.addEventListener('resize', layout);
+
+    setColor(color);
+    layout();
+    setTool(tool);
+  }
+
+  // Tema de cor (verde/azul/laranja/cinza) - só visível desbloqueado.
+  // Guardado como atributo data-theme no <html>, persiste ao gravar o ficheiro.
+  function applyTheme(name){
+    document.documentElement.setAttribute('data-theme', name);
+    themeSwatches.querySelectorAll('.theme-swatch').forEach(function(sw){
+      sw.classList.toggle('active', sw.getAttribute('data-theme') === name);
+    });
+  }
+  themeSwatches.addEventListener('click', function(e){
+    var sw = e.target.closest('.theme-swatch');
+    if(!sw) return;
+    applyTheme(sw.getAttribute('data-theme'));
+  });
+  applyTheme(document.documentElement.getAttribute('data-theme') || 'verde');
+
+  // Colapsar / expandir as zonas (texto e passos), no índice e no conteúdo.
+  function setZoneCollapsed(type, collapsed){
+    body.classList.toggle('collapsed-' + type, collapsed);
+    if(collapsed) closeNotes();
+  }
+  function toggleZone(type){
+    setZoneCollapsed(type, !body.classList.contains('collapsed-' + type));
+  }
+  main.addEventListener('click', function(e){
+    var head = e.target.closest('.zone-header');
+    if(head) toggleZone(head.getAttribute('data-zone'));
+  });
+  navList.addEventListener('click', function(e){
+    var head = e.target.closest('.nav-zone');
+    if(head) toggleZone(head.getAttribute('data-zone'));
+  });
+
+  decorateAll();
+  rebuildSidebar();
+
+  // Redimensionar imagens dos passos (só em modo edição): arrastar o canto
+  // inferior direito. A largura fica gravada como % no style da <img>.
+  var IMG_SEL = '.step-block img, .wiki-image img';
+  var CORNER = 22, resizing = null;
+  function inCorner(img, e){
+    var r = img.getBoundingClientRect();
+    return e.clientX >= r.right - CORNER && e.clientY >= r.bottom - CORNER;
+  }
+  main.addEventListener('pointermove', function(e){
+    if(resizing) return;
+    var img = e.target.closest && e.target.closest(IMG_SEL);
+    main.querySelectorAll('img.near-corner').forEach(function(el){
+      if(el !== img) el.classList.remove('near-corner');
+    });
+    if(img && editing) img.classList.toggle('near-corner', inCorner(img, e));
+  });
+  main.addEventListener('pointerdown', function(e){
+    var img = editing && e.target.closest && e.target.closest(IMG_SEL);
+    if(!img || !inCorner(img, e)) return;
+    e.preventDefault();
+    img.setPointerCapture(e.pointerId);
+    resizing = { img: img, startX: e.clientX, startW: img.getBoundingClientRect().width,
+                 parentW: img.parentElement.getBoundingClientRect().width };
+    img.classList.add('resizing');
+  });
+  main.addEventListener('pointermove', function(e){
+    if(!resizing) return;
+    var w = resizing.startW + (e.clientX - resizing.startX);
+    var pct = Math.max(10, Math.min(100, w / resizing.parentW * 100));
+    resizing.img.style.width = pct.toFixed(1) + '%';
+  });
+  function endResize(){
+    if(!resizing) return;
+    resizing.img.classList.remove('resizing');
+    resizing = null;
+  }
+  main.addEventListener('pointerup', endResize);
+  main.addEventListener('pointercancel', endResize);
+})();
+</script>
+
+
+</body></html>
