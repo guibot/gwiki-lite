@@ -1021,8 +1021,20 @@ body.notes-open .layout{padding-right:var(--notes-w,340px);}
               stepBlocks.forEach(function(block){
                 if(!block.id) block.id = genId('passo'); // âncora estável, grava-se no ficheiro
                 var strong = block.querySelector(':scope > p > strong');
-                var em = block.querySelector(':scope > p > em');
-                var caption = em ? em.textContent.trim() : '';
+                // legenda = primeira linha do parágrafo sem o "Passo NN" (dentro ou fora do <em>)
+                var capP = block.querySelector(':scope > p');
+                var caption = '';
+                if(capP){
+                  var capClone = capP.cloneNode(true);
+                  var capStrong = capClone.querySelector('strong');
+                  if(capStrong) capStrong.remove();
+                  // só a primeira linha: quebras <br> e <div> (Enter no editor) contam como nova linha
+                  capClone.querySelectorAll('br').forEach(function(br){ br.replaceWith('\n'); });
+                  capClone.querySelectorAll('div, p').forEach(function(d){ d.before('\n'); });
+                  caption = capClone.textContent.split('\n').map(function(l){
+                    return l.replace(/\s+/g, ' ').trim();
+                  }).filter(Boolean)[0] || '';
+                }
                 if(caption.length > 28) caption = caption.slice(0, 28).trim() + '…';
                 var stepLi = document.createElement('li');
                 stepLi.innerHTML = '<div class="nav-row"><span class="nav-caret-space"></span></div>';
@@ -1104,6 +1116,12 @@ body.notes-open .layout{padding-right:var(--notes-w,340px);}
     var clone = document.documentElement.cloneNode(true);
     var b = clone.querySelector('body');
     b.className = b.className.replace(/\b(collapsed-\w+|edit-mode|notes-open)\b/g, '').replace(/\s+/g, ' ').trim();
+    var nestedDiv;
+    while((nestedDiv = clone.querySelector('p div'))){
+      if(nestedDiv.previousSibling) nestedDiv.before(clone.ownerDocument.createElement('br'));
+      nestedDiv.after(clone.ownerDocument.createElement('br'));
+      nestedDiv.replaceWith(...nestedDiv.childNodes);
+    }
     clone.querySelectorAll('[contenteditable="true"]').forEach(function(el){ el.setAttribute('contenteditable', 'false'); });
     clone.querySelectorAll('.activity-p.selected').forEach(function(el){ el.classList.remove('selected'); });
     clone.querySelectorAll('.near-corner, .resizing').forEach(function(el){ el.classList.remove('near-corner', 'resizing'); });
@@ -2203,6 +2221,62 @@ body.notes-open .layout{padding-right:var(--notes-w,340px);}
     if(head) toggleZone(head.getAttribute('data-zone'));
   });
 
+  // Enter nas linhas de texto (passos/atividades) insere <br> em vez de um <div>: um
+  // <div> dentro de <p> não sobrevive a gravar e reabrir (o <p> fecha antes do <div>
+  // e o texto seguinte deixava de ser editável). Títulos ficam numa só linha.
+  main.addEventListener('keydown', function(e){
+    if(!editing || e.key !== 'Enter' || e.isComposing) return;
+    var t = e.target;
+    if(t.tagName === 'P' && t.isContentEditable){
+      e.preventDefault();
+      document.execCommand('insertLineBreak');
+    } else if(t.tagName === 'H1' || t.tagName === 'H2'){
+      e.preventDefault();
+    }
+  });
+  // Repara ficheiros já gravados com o problema. Um <div> dentro de <p> faz o parser
+  // fechar o <p> e o texto seguinte fica solto (às vezes dentro de <font>/<em> repetidos),
+  // fora de qualquer parágrafo editável. Volta tudo para o parágrafo anterior e remove
+  // o <p> vazio criado pelo parser e os <font> (restos de colagens antigas).
+  var ORPHAN_INLINE = /^(FONT|EM|STRONG|B|I|U|S|SPAN|A|BR|CODE|MARK|SMALL)$/;
+  // <div> dentro de <p> -> quebras de linha (um <div> ali não sobrevive a gravar/reabrir)
+  function flattenDivsInParagraphs(root){
+    var d;
+    while((d = root.querySelector('p div'))){
+      if(d.previousSibling) d.before(document.createElement('br'));
+      d.after(document.createElement('br')); // o <div> acabava a linha, mesmo dentro de <em>/<font>
+      d.replaceWith(...d.childNodes);
+    }
+  }
+  function repairBrokenParagraphs(){
+    main.querySelectorAll('.step-block, .sub-section, .doc-section').forEach(function(box){
+      var lastP = null;
+      Array.from(box.childNodes).forEach(function(n){
+        if(n.nodeType === 1 && n.tagName === 'P'){
+          if(lastP && !n.textContent.trim() && !n.children.length) n.remove(); // <p> vazio do parser
+          else lastP = n;
+          return;
+        }
+        if(!lastP) return;
+        var orphan = (n.nodeType === 3 && n.textContent.trim()) ||
+          (n.nodeType === 1 && (ORPHAN_INLINE.test(n.tagName) || (n.tagName === 'DIV' && !n.className)));
+        if(!orphan) return;
+        if(n.nodeType === 1 && n.tagName === 'DIV'){
+          // o <div> era uma linha própria: quebra antes e depois (sem duplicar <br>)
+          if(lastP.lastChild && lastP.lastChild.nodeName !== 'BR') lastP.appendChild(document.createElement('br'));
+          while(n.firstChild) lastP.appendChild(n.firstChild);
+          lastP.appendChild(document.createElement('br'));
+          n.remove();
+        } else {
+          lastP.appendChild(n);
+        }
+      });
+    });
+    main.querySelectorAll('font').forEach(function(f){ f.replaceWith(...f.childNodes); });
+    flattenDivsInParagraphs(main);
+  }
+
+  repairBrokenParagraphs();
   decorateAll();
   rebuildSidebar();
 
