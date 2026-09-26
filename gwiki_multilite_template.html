@@ -227,10 +227,36 @@ body.edit-mode .doc-section[data-type="steps"] .step-below-wrap{display:block;}
   background:var(--accent-bg); color:var(--accent); font-family:var(--font-mono);
 }
 .add-step-below-btn:hover{background:var(--accent); color:#0d0e10;}
+.step-block:not(:has(img)){margin-bottom:24px;}
+.step-block:not(:has(img)) .step-below-wrap{margin-top:12px; margin-bottom:0;}
+.session-end-wrap{display:none; margin:0 0 8px;}
+body.edit-mode .doc-section[data-type="steps"] .session-end-wrap{display:block;}
+.add-session-below-btn{
+  width:100%; padding:9px 10px; font-size:12px; font-weight:700;
+  border-radius:6px; cursor:pointer; border:1px solid var(--blue);
+  background:var(--blue-bg); color:var(--blue); font-family:var(--font-mono);
+}
+.add-session-below-btn:hover{background:var(--blue); color:#0d0e10;}
 .wiki-image{position:relative; margin:12px 0 20px;}
 .wiki-image img{max-width:100%; border-radius:8px; border:1px solid var(--border); display:block;}
 body.edit-mode .step-block img:hover, body.edit-mode .wiki-image img:hover, .step-block img.resizing, .wiki-image img.resizing{outline:1px dashed var(--accent); outline-offset:2px;}
 body.edit-mode .step-block img.near-corner, body.edit-mode .wiki-image img.near-corner{cursor:nwse-resize;}
+
+/* Formatação básica (negrito + links) */
+main p a, main li a{color:var(--blue); text-decoration:underline; text-underline-offset:2px;}
+.fmt-bar{
+  position:fixed; z-index:60; display:flex; gap:3px; padding:3px;
+  background:var(--bg-alt); border:1px solid var(--border2); border-radius:7px;
+  box-shadow:0 4px 14px rgba(0,0,0,.35);
+}
+.fmt-bar[hidden]{display:none;}
+.fmt-bar button{
+  min-width:28px; height:26px; padding:0 7px; border-radius:5px; cursor:pointer;
+  border:1px solid transparent; background:none; color:var(--text); font-family:var(--font-sans); font-size:13px;
+}
+.fmt-bar button:hover{border-color:var(--accent); color:var(--accent);}
+.fmt-bar button.active{background:var(--accent-bg); border-color:var(--accent); color:var(--accent);}
+.fmt-bar button[hidden]{display:none;}
 
 /* Editor de imagem (modal) */
 .ie-overlay{position:fixed; inset:0; z-index:100; background:rgba(0,0,0,.82); display:flex; flex-direction:column; font-family:var(--font-mono);}
@@ -437,6 +463,10 @@ body.notes-open .layout{padding-right:var(--notes-w,340px);}
 <div id="sessao-exemplo" class="sub-section"><div class="section-controls"><button class="ctrl-btn move-up-btn" type="button" title="Mover para cima">↑</button><button class="ctrl-btn move-down-btn" type="button" title="Mover para baixo">↓</button><button class="ctrl-btn danger del-session-btn" type="button">🗑 Sessão</button></div><h2 contenteditable="false">Sessão 1 · Passos com imagem e legenda</h2><div class="step-block"><div class="section-controls step-controls"><button class="ctrl-btn add-step-btn" type="button">+ Passo</button><button class="ctrl-btn danger del-step-btn" type="button">🗑 Passo</button></div><p contenteditable="false"><strong>Passo 01</strong> <em>Desbloqueia a edição clicando no 🔒 (fica 🔓).</em></p><img src="wiki-img/img1.png" alt="Passo 01" style="max-width:100%;border-radius:8px;border:1px solid var(--border);margin:4px 0 24px;display:block"></div><div class="step-block"><div class="section-controls step-controls"><button class="ctrl-btn add-step-btn" type="button">+ Passo</button><button class="ctrl-btn danger del-step-btn" type="button">🗑 Passo</button></div><p contenteditable="false"><strong>Passo 02</strong> <em>Clica em "+ Passo ↑" para adicionares um novo passo por cima deste, ou em "+ Passo ↓" para adicionares por baixo. Vai-te ser pedido para escolheres uma imagem — escolhe-a no Finder — em Chrome/Edge é copiada para "wiki-img/" ao lado deste ficheiro (a pasta do projeto é a que escolheste ao gravar).</em></p><img src="wiki-img/img2.png" alt="Passo 02" style="max-width:100%;border-radius:8px;border:1px solid var(--border);margin:4px 0 24px;display:block"></div><div class="step-block"><div class="section-controls step-controls"><button class="ctrl-btn add-step-btn" type="button">+ Passo</button><button class="ctrl-btn danger del-step-btn" type="button">🗑 Passo</button></div><p contenteditable="false"><strong>Passo 03</strong> <em>Escreve a legenda diretamente por cima da imagem (a parte a itálico). Os números dos passos atualizam-se sozinhos ao adicionar/apagar. Usa "🗑 Passo" para apagar um passo, e o 🔒 para gravar as alterações no ficheiro.</em></p><img src="wiki-img/img3.png" alt="Passo 03" style="max-width:100%;border-radius:8px;border:1px solid var(--border);margin:4px 0 24px;display:block"></div></div>
 </section>
   </main>
+  <div class="fmt-bar" id="fmtBar" hidden>
+    <button type="button" id="fmtBold" title="Negrito (Ctrl/Cmd+B)"><b>B</b></button>
+    <button type="button" id="fmtUnlink" title="Remover link" hidden>🔗✕</button>
+  </div>
   <aside class="notes-panel" id="notesPanel">
     <div class="resize-handle" id="notesResizeHandle"></div>
     <div class="notes-header">
@@ -862,6 +892,7 @@ body.notes-open .layout{padding-right:var(--notes-w,340px);}
 
   main.addEventListener('click', function(e){
     if(editing) return;
+    if(e.target.closest('a[href]')) return; // um link só abre o link, não as notas
     var actP = e.target.closest('.activity-p');
     if(!actP) return;
     openNotesFor(actP);
@@ -927,6 +958,14 @@ body.notes-open .layout{padding-right:var(--notes-w,340px);}
     }
     ensureImageButtons(sub);
     ensureStepAddButtons(sub);
+    // sessões de passos: "+ Sessão" no fim, para criar a seguinte logo abaixo
+    var stepsSec = sub.closest('.doc-section');
+    if(stepsSec && blockType(stepsSec) === 'steps' && !sub.querySelector(':scope > .session-end-wrap')){
+      var endWrap = document.createElement('div');
+      endWrap.className = 'session-end-wrap';
+      endWrap.innerHTML = '<button class="ctrl-btn add-session-below-btn" type="button" title="Nova sessão logo abaixo desta">+ Sessão ↓</button>';
+      sub.appendChild(endWrap);
+    }
   }
   // "+ Passo ↑" (topo, já existente) e "+ Passo ↓" (por baixo de cada passo).
   // Também remove o antigo botão "no fim da sessão".
@@ -945,12 +984,20 @@ body.notes-open .layout{padding-right:var(--notes-w,340px);}
   // "Trocar" e "Editar" nos controlos de cada imagem (passos e imagens soltas).
   function ensureImageButtons(root){
     root.querySelectorAll('.step-controls, .image-controls').forEach(function(bar){
-      if(bar.querySelector('.replace-img-btn')) return;
+      var box = bar.closest('.step-block, .wiki-image');
+      var hasImg = !!box.querySelector('img');
+      var isStep = box.classList.contains('step-block');
       var del = bar.querySelector('.del-step-btn, .del-image-btn');
-      [['replace-img-btn', '🖼 Trocar', 'Substituir por outra imagem'],
-       ['edit-img-btn', '✏ Editar', 'Recortar, anotar, desfocar']].forEach(function(def){
+      bar.querySelectorAll('.replace-img-btn, .edit-img-btn, .remove-img-btn').forEach(function(b){ b.remove(); });
+      // passo sem imagem: só "Adicionar imagem"; com imagem: Trocar, Editar e (nos passos) Remover imagem
+      var defs = hasImg
+        ? [['replace-img-btn', '🖼 Trocar', 'Substituir por outra imagem'],
+           ['edit-img-btn', '✏ Editar', 'Recortar, anotar, desfocar']]
+        : [['replace-img-btn', '🖼 Adicionar imagem', 'Escolher uma imagem para este passo']];
+      if(hasImg && isStep) defs.push(['remove-img-btn', '🗑 Imagem', 'Remover a imagem (o passo fica só com texto)']);
+      defs.forEach(function(def){
         var btn = document.createElement('button');
-        btn.className = 'ctrl-btn ' + def[0];
+        btn.className = 'ctrl-btn ' + def[0] + (def[0] === 'remove-img-btn' ? ' danger' : '');
         btn.type = 'button';
         btn.title = def[2];
         btn.textContent = def[1];
@@ -1085,6 +1132,7 @@ body.notes-open .layout{padding-right:var(--notes-w,340px);}
       if(el.closest('.section-controls')) return;
       el.setAttribute('contenteditable', on ? 'true' : 'false');
     });
+    if(!on) fmtBar.hidden = true;
     docTitle.setAttribute('contenteditable', on ? 'true' : 'false');
     docSubtitle.setAttribute('contenteditable', on ? 'true' : 'false');
   }
@@ -1099,14 +1147,148 @@ body.notes-open .layout{padding-right:var(--notes-w,340px);}
     if(!sel.rangeCount) return;
     var range = sel.getRangeAt(0);
     range.deleteContents();
-    var node = document.createTextNode(text);
-    range.insertNode(node);
-    range.setStartAfter(node);
-    range.setEndAfter(node);
+    // em parágrafos/listas, endereços http(s):// e www. colados viram links
+    var frag = linkifyToFragment(text, !!isRichField(range.startContainer));
+    var lastNode = frag.lastChild;
+    if(lastNode && lastNode.nodeName === 'A') frag.appendChild(document.createTextNode(''));
+    lastNode = frag.lastChild;
+    range.insertNode(frag);
+    range.setStartAfter(lastNode);
+    range.setEndAfter(lastNode);
     sel.removeAllRanges();
     sel.addRange(range);
   }
   document.addEventListener('paste', stripFormattingOnPaste);
+
+  // ---- Formatação básica: negrito (B) e hiperlinks ----
+  // Só em parágrafos e listas (incluindo legendas dos passos), não em títulos. O negrito
+  // usa <b> (o <strong> é do "Passo NN"/título da atividade). Endereços http(s):// e www.
+  // viram links ao escrever espaço/Enter a seguir ou ao colar.
+  var fmtBar = document.getElementById('fmtBar');
+  var fmtBold = document.getElementById('fmtBold');
+  var fmtUnlink = document.getElementById('fmtUnlink');
+  var URL_RE = /(?:https?:\/\/|www\.)[^\s<>"']*[^\s<>"'.,;:!?)\]}]/gi;
+
+  function makeLink(text){
+    var a = document.createElement('a');
+    a.href = /^www\./i.test(text) ? 'https://' + text : text;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.textContent = text;
+    return a;
+  }
+  // parágrafo/item editável (não títulos) que contém o nó, ou null
+  function isRichField(node){
+    var el = node && (node.nodeType === 1 ? node : node.parentElement);
+    var f = el && el.closest('p, li');
+    return (f && main.contains(f) && !f.closest('.section-controls') && f.isContentEditable) ? f : null;
+  }
+  function linkifyToFragment(text, linkify){
+    var frag = document.createDocumentFragment(), last = 0, m;
+    if(linkify){
+      URL_RE.lastIndex = 0;
+      while((m = URL_RE.exec(text))){
+        if(m.index > 0 && !/[\s(]/.test(text.charAt(m.index - 1))) continue;
+        if(m.index > last) frag.appendChild(document.createTextNode(text.slice(last, m.index)));
+        frag.appendChild(makeLink(m[0]));
+        last = m.index + m[0].length;
+      }
+    }
+    if(last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+    return frag;
+  }
+  // Transforma em link os endereços em texto simples dentro de root (parágrafos/listas),
+  // por ex. URLs escritas ou coladas antes de existirem links. Ignora o que já é link.
+  function linkifyElement(root){
+    if(!root) return;
+    var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT), nodes = [], n;
+    while((n = walker.nextNode())){
+      if(n.parentElement.closest('a, .section-controls') || !n.parentElement.closest('p, li')) continue;
+      URL_RE.lastIndex = 0;
+      if(URL_RE.test(n.data)) nodes.push(n);
+    }
+    nodes.forEach(function(t){
+      var frag = linkifyToFragment(t.data, true);
+      if(frag.querySelector('a')) t.replaceWith(frag);
+    });
+  }
+  // Transforma em link o endereço que está mesmo antes do cursor (ignorando o espaço acabado de escrever)
+  function autoLinkBeforeCaret(){
+    var sel = getSelection();
+    if(!sel.rangeCount || !sel.isCollapsed) return;
+    var node = sel.anchorNode, off = sel.anchorOffset;
+    if(!node || node.nodeType !== 3 || !isRichField(node) || node.parentElement.closest('a')) return;
+    var trail = /[\s ]*$/.exec(node.data.slice(0, off))[0].length;
+    var end = off - trail;
+    var m = /(?:^|[\s( ])((?:https?:\/\/|www\.)[^\s<>"' ]*[^\s<>"' .,;:!?)\]}])$/i.exec(node.data.slice(0, end));
+    if(!m) return;
+    var r = document.createRange();
+    r.setStart(node, end - m[1].length);
+    r.setEnd(node, end);
+    var a = makeLink(m[1]);
+    r.deleteContents();
+    r.insertNode(a);
+    var nx = a.nextSibling, caret = document.createRange();
+    if(nx && nx.nodeType === 3) caret.setStart(nx, Math.min(trail, nx.length));
+    else caret.setStartAfter(a);
+    caret.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(caret);
+  }
+
+  main.addEventListener('input', function(e){
+    if(editing && e.inputType === 'insertText' && (e.data === ' ' || e.data === ' ')) autoLinkBeforeCaret();
+  });
+  main.addEventListener('keydown', function(e){
+    if(editing && e.key === 'Enter' && !e.isComposing) autoLinkBeforeCaret(); // antes de o Enter agir
+  }, true);
+  main.addEventListener('focusout', function(e){
+    if(editing) linkifyElement(isRichField(e.target));
+  });
+  // Só negrito e link: sem itálico/sublinhado, e sem negrito nos títulos
+  document.addEventListener('keydown', function(e){
+    if(!editing || !(e.ctrlKey || e.metaKey) || e.altKey || !e.target.isContentEditable) return;
+    var k = e.key.toLowerCase();
+    if(k === 'i' || k === 'u') e.preventDefault();
+    else if(k === 'b' && !isRichField(e.target)) e.preventDefault();
+  });
+  // Clique num link: em edição só edita (Ctrl/Cmd+clique abre); bloqueado abre num separador novo
+  main.addEventListener('click', function(e){
+    var a = e.target.closest('a[href]');
+    if(!a || !editing) return;
+    e.preventDefault();
+    if(e.ctrlKey || e.metaKey) window.open(a.href, '_blank', 'noopener');
+  });
+
+  // Mini-barra sobre o texto selecionado
+  var fmtTimer = null;
+  function updateFmtBar(){
+    var sel = getSelection();
+    if(!editing || !sel.rangeCount || sel.isCollapsed || !isRichField(sel.anchorNode) || !isRichField(sel.focusNode)){
+      fmtBar.hidden = true;
+      return;
+    }
+    var rect = sel.getRangeAt(0).getBoundingClientRect();
+    if(!rect.width && !rect.height){ fmtBar.hidden = true; return; }
+    fmtBar.hidden = false;
+    fmtBold.classList.toggle('active', document.queryCommandState('bold'));
+    var field = isRichField(sel.anchorNode);
+    var selRange = sel.getRangeAt(0);
+    fmtUnlink.hidden = !Array.prototype.some.call(field.querySelectorAll('a'), function(a){ return selRange.intersectsNode(a); });
+    var w = fmtBar.offsetWidth, h = fmtBar.offsetHeight;
+    fmtBar.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, rect.left + rect.width / 2 - w / 2)) + 'px';
+    fmtBar.style.top = (rect.top - h - 8 < 8 ? rect.bottom + 8 : rect.top - h - 8) + 'px';
+  }
+  function scheduleFmtBar(){
+    clearTimeout(fmtTimer);
+    fmtTimer = setTimeout(updateFmtBar, 16);
+  }
+  document.addEventListener('selectionchange', scheduleFmtBar);
+  window.addEventListener('scroll', scheduleFmtBar, {passive: true, capture: true});
+  fmtBar.addEventListener('mousedown', function(e){ e.preventDefault(); }); // não perder a seleção
+  fmtBold.addEventListener('click', function(){ document.execCommand('bold'); scheduleFmtBar(); });
+  fmtUnlink.addEventListener('click', function(){ document.execCommand('unlink'); scheduleFmtBar(); });
+
 
   // HTML do documento sem o estado de colapso das zonas (só de vista, não fica gravado)
   // O ficheiro grava-se sempre no estado bloqueado, mesmo que se serialize em modo
@@ -1127,6 +1309,8 @@ body.notes-open .layout{padding-right:var(--notes-w,340px);}
     clone.querySelectorAll('.near-corner, .resizing').forEach(function(el){ el.classList.remove('near-corner', 'resizing'); });
     var panel = clone.querySelector('#notesPanel');
     if(panel) panel.classList.remove('open');
+    var fb = clone.querySelector('#fmtBar');
+    if(fb){ fb.setAttribute('hidden', ''); fb.removeAttribute('style'); fb.querySelectorAll('.active').forEach(function(el){ el.classList.remove('active'); }); }
     var nb = clone.querySelector('#notesBlocks');
     if(nb) nb.innerHTML = '';
     clone.querySelectorAll('.ie-overlay, input[type="file"]').forEach(function(el){ el.remove(); });
@@ -1399,8 +1583,7 @@ body.notes-open .layout{padding-right:var(--notes-w,340px);}
           '<button class="ctrl-btn danger del-step-btn" type="button">🗑 Passo</button>' +
         '</div>' +
         '<p contenteditable="true"><strong>Passo 00</strong> <em>legenda...</em></p>' +
-        '<img alt="Passo 00" style="width:70%;max-width:100%;border-radius:8px;border:1px solid var(--border);margin:4px 0 24px;display:block"></div>' +
-        '';
+        '</div>';
     } else {
       sub.innerHTML = '<h2 contenteditable="true">Nova Sessão</h2><p contenteditable="true"><strong>Nome da atividade</strong> Descrição da sessão…</p>';
     }
@@ -1440,6 +1623,7 @@ body.notes-open .layout{padding-right:var(--notes-w,340px);}
   main.addEventListener('click', function(e){
     if(!editing) return;
     var addSessionBtn = e.target.closest('.add-session-btn');
+    var addSessionBelowBtn = e.target.closest('.add-session-below-btn');
     var delBlockBtn = e.target.closest('.del-block-btn');
     var delSessionBtn = e.target.closest('.del-session-btn');
     var moveUpBtn = e.target.closest('.move-up-btn');
@@ -1460,12 +1644,22 @@ body.notes-open .layout{padding-right:var(--notes-w,340px);}
       return;
     }
 
+    if(addSessionBelowBtn){
+      var curSub = addSessionBelowBtn.closest('.sub-section');
+      var newSub = makeSession(blockType(curSub.closest('.doc-section')));
+      curSub.after(newSub);
+      ensureSessionControls(newSub);
+      renumberSteps(); // também refaz o índice
+      newSub.querySelector('h2').focus();
+      newSub.scrollIntoView({behavior:'smooth', block:'center'});
+      return;
+    }
     if(addSessionBtn){
       var sec = addSessionBtn.closest('.doc-section');
       var sub = makeSession(blockType(sec));
       sec.appendChild(sub);
       ensureSessionControls(sub);
-      rebuildSidebar();
+      renumberSteps();
       sub.querySelector('h2').focus();
       sub.scrollIntoView({behavior:'smooth', block:'center'});
       return;
@@ -1573,7 +1767,7 @@ body.notes-open .layout{padding-right:var(--notes-w,340px);}
   stepFileInput.accept = 'image/*';
   stepFileInput.style.display = 'none';
   document.body.appendChild(stepFileInput);
-  var pendingStepInsert = null; // { mode: 'before'|'after', ref: element }
+  var pendingStepImageBlock = null; // passo (sem imagem) à espera de uma imagem
   var pendingImageSession = null; // sessão de texto à espera de uma imagem
   var pendingReplaceImg = null; // <img> à espera de ser substituída
 
@@ -1601,8 +1795,7 @@ body.notes-open .layout{padding-right:var(--notes-w,340px);}
         '<button class="ctrl-btn danger del-step-btn" type="button">🗑 Passo</button>' +
       '</div>' +
       '<p contenteditable="true"><strong>Passo 00</strong> <em>legenda...</em></p>' +
-      '<img src="' + src + '" alt="Passo 00" ' +
-      'style="width:70%;max-width:100%;border-radius:8px;border:1px solid var(--border);margin:4px 0 24px;display:block">';
+      (src ? '<img src="' + src + '" alt="Passo 00" style="width:70%;max-width:100%;border-radius:8px;border:1px solid var(--border);margin:4px 0 24px;display:block">' : '');
     return block;
   }
 
@@ -1646,7 +1839,7 @@ body.notes-open .layout{padding-right:var(--notes-w,340px);}
       if(state === 'ready'){ stepFileInput.click(); return; }
       if(state === 'connected') alert('Pasta ligada. Clica outra vez para escolher a imagem.');
       pendingImageSession = null;
-      pendingStepInsert = null;
+      pendingStepImageBlock = null;
       pendingReplaceImg = null;
     });
   }
@@ -1654,12 +1847,12 @@ body.notes-open .layout{padding-right:var(--notes-w,340px);}
   stepFileInput.addEventListener('change', function(){
     if(!this.files.length) return;
     var file = this.files[0];
-    var imageSession = pendingImageSession, stepInsert = pendingStepInsert, replaceImg = pendingReplaceImg;
+    var imageSession = pendingImageSession, stepBlock = pendingStepImageBlock, replaceImg = pendingReplaceImg;
     pendingImageSession = null;
-    pendingStepInsert = null;
+    pendingStepImageBlock = null;
     pendingReplaceImg = null;
     this.value = '';
-    if(!imageSession && !stepInsert && !replaceImg) return;
+    if(!imageSession && !stepBlock && !replaceImg) return;
     storeImage(file).then(function(src){
       if(!src) return;
       if(replaceImg){
@@ -1667,35 +1860,47 @@ body.notes-open .layout{padding-right:var(--notes-w,340px);}
         if(main.contains(replaceImg)) replaceImg.setAttribute('src', src);
         return;
       }
-      if(imageSession){
-        var wrap = document.createElement('div');
-        wrap.className = 'wiki-image';
-        wrap.innerHTML =
-          '<div class="section-controls image-controls">' +
-            '<button class="ctrl-btn danger del-image-btn" type="button">🗑 Imagem</button>' +
-          '</div>' +
-          '<img src="' + src + '" alt="' + file.name.replace(/\.[^.]+$/, '').replace(/[&<>"]/g, '') + '" style="width:70%">';
-        ensureImageButtons(wrap);
-        imageSession.appendChild(wrap);
-        wrap.scrollIntoView({behavior:'smooth', block:'center'});
+      if(stepBlock){
+        // passo sem imagem: cria a <img> (70% da largura) depois da legenda
+        if(!main.contains(stepBlock) || stepBlock.querySelector('img')) return;
+        var stepImg = document.createElement('img');
+        stepImg.setAttribute('src', src);
+        stepImg.setAttribute('alt', 'Passo');
+        stepImg.setAttribute('style', 'width:70%;max-width:100%;border-radius:8px;border:1px solid var(--border);margin:4px 0 24px;display:block');
+        stepBlock.insertBefore(stepImg, stepBlock.querySelector('.step-below-wrap'));
+        renumberSteps(); // acerta o alt
+        ensureImageButtons(stepBlock);
         return;
       }
-      var block = buildStepBlock(src);
-      ensureImageButtons(block);
-      ensureStepAddButtons(block);
-      // 'before': por cima do passo clicado; 'after': por baixo
-      if(stepInsert.mode === 'after'){
-        stepInsert.ref.parentNode.insertBefore(block, stepInsert.ref.nextSibling);
-      } else {
-        stepInsert.ref.parentNode.insertBefore(block, stepInsert.ref);
-      }
-      renumberSteps();
-      decorateActivities();
-      var newP = block.querySelector(':scope > .activity-p');
-      if(newP) openNotesFor(newP, false);
-      block.scrollIntoView({behavior:'smooth', block:'center'});
+      var wrap = document.createElement('div');
+      wrap.className = 'wiki-image';
+      wrap.innerHTML =
+        '<div class="section-controls image-controls">' +
+          '<button class="ctrl-btn danger del-image-btn" type="button">🗑 Imagem</button>' +
+        '</div>' +
+        '<img src="' + src + '" alt="' + file.name.replace(/\.[^.]+$/, '').replace(/[&<>"]/g, '') + '" style="width:70%">';
+      ensureImageButtons(wrap);
+      imageSession.appendChild(wrap);
+      wrap.scrollIntoView({behavior:'smooth', block:'center'});
     });
   });
+
+  // Novo passo (sem imagem): 'before' = por cima do passo de referência, 'after' = por baixo.
+  function insertStep(mode, ref){
+    var block = buildStepBlock(null);
+    ref.parentNode.insertBefore(block, mode === 'after' ? ref.nextSibling : ref);
+    ensureImageButtons(block);
+    ensureStepAddButtons(block);
+    renumberSteps();
+    decorateActivities();
+    var newP = block.querySelector(':scope > .activity-p');
+    if(newP){
+      newP.focus(); // escreve logo a legenda: o texto de exemplo fica selecionado
+      var em = newP.querySelector('em');
+      if(em) getSelection().selectAllChildren(em);
+    }
+    block.scrollIntoView({behavior:'smooth', block:'center'});
+  }
 
   main.addEventListener('click', function(e){
     if(!editing) return;
@@ -1707,12 +1912,23 @@ body.notes-open .layout{padding-right:var(--notes-w,340px);}
     var delImageBtn = e.target.closest('.del-image-btn');
     var replaceImgBtn = e.target.closest('.replace-img-btn');
     var editImgBtn = e.target.closest('.edit-img-btn');
+    var removeImgBtn = e.target.closest('.remove-img-btn');
 
     if(replaceImgBtn){
+      var imgBox = replaceImgBtn.closest('.step-block, .wiki-image');
+      var boxImg = imgBox.querySelector('img');
       pendingImageSession = null;
-      pendingStepInsert = null;
-      pendingReplaceImg = replaceImgBtn.closest('.step-block, .wiki-image').querySelector('img');
+      pendingReplaceImg = boxImg;                 // trocar a imagem existente…
+      pendingStepImageBlock = boxImg ? null : imgBox; // …ou adicionar a um passo sem imagem
       openImagePicker();
+      return;
+    }
+    if(removeImgBtn){
+      var stepOfImg = removeImgBtn.closest('.step-block');
+      if(!confirm('Remover a imagem deste passo? (o ficheiro continua em wiki-img/)')) return;
+      var imgToRemove = stepOfImg.querySelector('img');
+      if(imgToRemove) imgToRemove.remove();
+      ensureImageButtons(stepOfImg);
       return;
     }
     if(editImgBtn){
@@ -1730,7 +1946,7 @@ body.notes-open .layout{padding-right:var(--notes-w,340px);}
       return;
     }
     if(addImageBtn){
-      pendingStepInsert = null;
+      pendingStepImageBlock = null;
       pendingReplaceImg = null;
       pendingImageSession = addImageBtn.closest('.sub-section');
       openImagePicker();
@@ -1743,17 +1959,11 @@ body.notes-open .layout{padding-right:var(--notes-w,340px);}
     }
 
     if(addStepBtn){
-      pendingImageSession = null;
-      pendingReplaceImg = null;
-      pendingStepInsert = { mode: 'before', ref: addStepBtn.closest('.step-block') };
-      openImagePicker();
+      insertStep('before', addStepBtn.closest('.step-block'));
       return;
     }
     if(addStepBelowBtn){
-      pendingImageSession = null;
-      pendingReplaceImg = null;
-      pendingStepInsert = { mode: 'after', ref: addStepBelowBtn.closest('.step-block') };
-      openImagePicker();
+      insertStep('after', addStepBelowBtn.closest('.step-block'));
       return;
     }
     if(delStepBtn){
@@ -2277,6 +2487,7 @@ body.notes-open .layout{padding-right:var(--notes-w,340px);}
   }
 
   repairBrokenParagraphs();
+  linkifyElement(main);
   decorateAll();
   rebuildSidebar();
 
