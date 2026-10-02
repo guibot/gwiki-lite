@@ -1137,16 +1137,121 @@ body.notes-open .layout{padding-right:var(--notes-w,340px);}
     docSubtitle.setAttribute('contenteditable', on ? 'true' : 'false');
   }
 
+  // Estrutura do conteúdo colado: lista de {text, li} (parágrafos e itens de lista), sem estilos
+  function pasteBlocks(html, plain){
+    var out = [];
+    function clean(s){ return s.replace(/\s+/g, ' ').trim(); }
+    if(html){
+      var BLOCK = 'p,div,ul,ol,li,h1,h2,h3,h4,h5,h6,blockquote,table,pre';
+      (function walk(node){
+        Array.from(node.childNodes).forEach(function(n){
+          if(n.nodeType !== 1) return;
+          var tag = n.tagName;
+          if(tag === 'LI'){
+            var sub = n.querySelectorAll('ul,ol');
+            var clone = n.cloneNode(true);
+            clone.querySelectorAll('ul,ol').forEach(function(x){ x.remove(); });
+            var t = clean(clone.textContent);
+            if(t) out.push({text: t, li: true});
+            if(sub.length) walk(n);
+          } else if(/^(UL|OL)$/.test(tag) || n.querySelector(BLOCK)){
+            walk(n);
+          } else if(/^(P|DIV|H[1-6]|BLOCKQUOTE|PRE)$/.test(tag)){
+            n.querySelectorAll('br').forEach(function(b){ b.replaceWith(' '); });
+            var p = clean(n.textContent);
+            if(p) out.push({text: p, li: false});
+          }
+        });
+      })(new DOMParser().parseFromString(html, 'text/html').body);
+      if(out.length) return out;
+    }
+    (plain || '').split(/\r?\n/).forEach(function(line){
+      var m = /^\s*(?:[•◦▪●\-\*–]\s+)?(.*\S)\s*$/.exec(line);
+      if(!m) return;
+      out.push({text: m[1], li: /^\s*[•◦▪●\-\*–]\s+/.test(line)});
+    });
+    return out;
+  }
+  // Insere os blocos: texto inicial no cursor (linhas separadas por <br>); listas viram
+  // <ul><li> e novos parágrafos <p> a seguir ao parágrafo atual (num <li>: itens irmãos).
+  function pasteBlocksInto(field, range, blocks){
+    var inLi = field.tagName === 'LI', segs = [];
+    blocks.forEach(function(b){
+      var kind = (b.li || inLi) ? 'list' : 'text', last = segs[segs.length - 1];
+      if(last && last.kind === kind) last.items.push(b.text);
+      else segs.push({kind: kind, items: [b.text]});
+    });
+    var frag = document.createDocumentFragment(), end = null;
+    if(segs[0].kind === 'text' || (inLi && !blocks[0].li)){
+      var firstSeg = segs.shift() || {items: []};
+      firstSeg.items.forEach(function(t, i){
+        if(i) frag.appendChild(document.createElement('br'));
+        frag.appendChild(document.createTextNode(t));
+      });
+      end = frag.lastChild;
+      range.insertNode(frag);
+    }
+    var ref = field;
+    segs.forEach(function(seg){
+      var el;
+      if(seg.kind === 'text'){
+        el = document.createElement('p');
+        el.setAttribute('contenteditable', 'true');
+        seg.items.forEach(function(t, i){
+          if(i) el.appendChild(document.createElement('br'));
+          el.appendChild(document.createTextNode(t));
+        });
+        ref.after(el);
+        ref = el;
+      } else if(inLi){
+        seg.items.forEach(function(t){
+          el = document.createElement('li');
+          el.setAttribute('contenteditable', 'true');
+          el.textContent = t;
+          ref.after(el);
+          ref = el;
+        });
+      } else {
+        el = document.createElement('ul');
+        seg.items.forEach(function(t){
+          var li = document.createElement('li');
+          li.setAttribute('contenteditable', 'true');
+          li.textContent = t;
+          el.appendChild(li);
+        });
+        ref.after(el);
+        ref = el;
+        el = el.lastChild;
+      }
+      end = el;
+    });
+    var r = document.createRange(), sel = window.getSelection();
+    if(end && end.nodeType === 3){ r.setStartAfter(end); } else { r.selectNodeContents(end || field); r.collapse(false); }
+    r.collapse(false);
+    sel.removeAllRanges();
+    sel.addRange(r);
+  }
+
   // Colar sempre como texto simples (sem cor/tamanho/fonte da origem)
   function stripFormattingOnPaste(e){
     if(!editing) return;
     if(!e.target.closest('[contenteditable="true"]')) return;
     e.preventDefault();
-    var text = (e.clipboardData || window.clipboardData).getData('text/plain');
+    var cd = e.clipboardData || window.clipboardData;
+    var text = cd.getData('text/plain');
     var sel = window.getSelection();
     if(!sel.rangeCount) return;
     var range = sel.getRangeAt(0);
     range.deleteContents();
+    var field = isRichField(range.startContainer);
+    if(field){
+      var blocks = pasteBlocks(cd.getData('text/html'), text);
+      if(blocks.length > 1 || (blocks.length === 1 && blocks[0].li)){
+        pasteBlocksInto(field, range, blocks);
+        return;
+      }
+      if(blocks.length === 1) text = blocks[0].text;
+    }
     // em parágrafos/listas, endereços http(s):// e www. colados viram links
     var frag = linkifyToFragment(text, !!isRichField(range.startContainer));
     var lastNode = frag.lastChild;
@@ -1425,6 +1530,8 @@ body.notes-open .layout{padding-right:var(--notes-w,340px);}
   // Grava o documento por cima do próprio ficheiro (com backup do estado
   // anterior em bk/). Se não der (browser sem a API, pasta recusada, ficheiro
   // não encontrado), descarrega como antes. Devolve uma mensagem para o utilizador.
+  function backupBase(){ return (htmlName || 'index.html').replace(/\.html?$/i, ''); }
+  function backupName(){ return backupBase() + '-' + timestamp() + '.html'; }
   async function saveDocument(backupHtml){
     var html = serializeDoc();
     if(window.showDirectoryPicker && htmlName){
@@ -1435,7 +1542,7 @@ body.notes-open .layout{padding-right:var(--notes-w,340px);}
           var msg = '';
           if(backupHtml){
             var bkDir = await projectDir.getDirectoryHandle('bk', {create: true});
-            var bkName = 'bk-' + timestamp() + '.html';
+            var bkName = backupName();
             await writeTextFile(bkDir, bkName, backupHtml);
             msg = ' Backup do estado anterior: bk/' + bkName + '.';
           }
@@ -1447,7 +1554,7 @@ body.notes-open .layout{padding-right:var(--notes-w,340px);}
         alert('Não foi possível gravar diretamente (' + err.message + '). O ficheiro vai ser descarregado.');
       }
     }
-    if(backupHtml) downloadFile('bk-' + timestamp() + '.html', backupHtml);
+    if(backupHtml) downloadFile(backupName(), backupHtml);
     downloadFile(htmlName || 'index.html', html);
     return {ok: false, text: 'Ficheiro descarregado' + (backupHtml ? ' (mais um backup do estado anterior)' : '') + '. Substitui o ficheiro original pelo que acabou de ser transferido.'};
   }
@@ -1513,9 +1620,10 @@ body.notes-open .layout{padding-right:var(--notes-w,340px);}
   async function pruneBackups(bkDir){
     var names = [];
     for await (var entry of bkDir.entries()){
-      if(entry[1].kind === 'file' && /^bk-.*\.html$/.test(entry[0])) names.push(entry[0]);
+      if(entry[1].kind === 'file' && /^\d{8}-\d{6}$/.test(entry[0].slice(backupBase().length + 1, -5)) &&
+         entry[0].indexOf(backupBase() + '-') === 0) names.push(entry[0]);
     }
-    names.sort(); // bk-AAAAMMDD-HHMMSS: por ordem cronológica
+    names.sort(); // nome-AAAAMMDD-HHMMSS: por ordem cronológica
     for(var i = 0; i < names.length - AUTO_KEEP; i++) await bkDir.removeEntry(names[i]);
   }
 
@@ -1534,7 +1642,7 @@ body.notes-open .layout{padding-right:var(--notes-w,340px);}
       if(now - lastBackupAt >= AUTO_BACKUP_MS){
         var current = await (await projectDir.getFileHandle(htmlName)).getFile();
         var bkDir = await projectDir.getDirectoryHandle('bk', {create: true});
-        await writeTextFile(bkDir, 'bk-' + timestamp() + '.html', await current.text());
+        await writeTextFile(bkDir, backupName(), await current.text());
         lastBackupAt = now;
         await pruneBackups(bkDir);
       }
