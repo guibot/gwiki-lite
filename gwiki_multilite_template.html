@@ -1399,7 +1399,16 @@ body.notes-open .layout{padding-right:var(--notes-w,340px);}
   // O ficheiro grava-se sempre no estado bloqueado, mesmo que se serialize em modo
   // de edição (auto-save): sem edit-mode/notes-open, contenteditable="false", sem
   // seleção nem elementos temporários (editor de imagem, seletor de ficheiros).
+  // O título da wiki (h1) passa também para o <title> (separador do browser)
+  function syncPageTitle(){
+    var t = docTitle.textContent.replace(/\s+/g, ' ').trim();
+    if(t) document.title = t;
+  }
+  docTitle.addEventListener('input', syncPageTitle);
+  syncPageTitle();
+
   function serializeDoc(){
+    syncPageTitle();
     var clone = document.documentElement.cloneNode(true);
     var b = clone.querySelector('body');
     b.className = b.className.replace(/\b(collapsed-\w+|edit-mode|notes-open)\b/g, '').replace(/\s+/g, ' ').trim();
